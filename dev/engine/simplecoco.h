@@ -1,5 +1,5 @@
-// MT MK3 ZX v0.1 [Ninjajar_M]
-// Copyleft 2017 by The Mojon Twins
+// MT MK3 OM v0.4 [Cheril in Otro Bosque]
+// Copyleft 2017, 2018 by The Mojon Twins
 
 // Simple coco
 
@@ -31,7 +31,10 @@ void simplecoco_aimed_new () {
 		rdc = MIN (rda, rdb);	// MIN (dx, dy)
 		rdct = rda + rdb - (rdc >> 1) - (rdc >> 2) + (rdc >> 4);
 		
-		if (rdct > COCO_FAIR_D) {
+#if defined(COCO_FAIR_D) && COCO_FAIR_D > 0
+		if (rdct > COCO_FAIR_D) 
+#endif
+		{
 			// Shoot towards the player.
 			_coco_x = rdx << FIX_BITS;
 			_coco_y = rdy << FIX_BITS;
@@ -43,6 +46,8 @@ void simplecoco_aimed_new () {
 			// Fill arrays
 			coco_x [coco_it] = _coco_x;
 			coco_y [coco_it] = _coco_y;
+			
+			SFX_PLAY (SFX_COCO);
 		}
 	}
 }
@@ -50,8 +55,12 @@ void simplecoco_aimed_new () {
 
 #ifdef ENABLE_COCO_AIMED_DOWN
 void simplecoco_straight_down () {
+#ifdef ONE_PER_ENEM
+	coco_it = gpit; if (0 == coco_y [coco_it]) {
+#else	
 	if (coco_slot) {
 		coco_slot --; coco_it = coco_slots [coco_slot];
+#endif
 
 		if (pry > rdy + 32) {
 			coco_x [coco_it] = rdx << FIX_BITS;
@@ -66,6 +75,22 @@ void simplecoco_straight_down () {
 #ifdef ENABLE_COCO_STRAIGHT
 void simplecoco_straight_new () {
 
+	// Create coco @ rdx, rdy, direction rda
+#ifdef ONE_PER_ENEM				
+	coco_it = gpit; if (0 == coco_y [coco_it]) {
+#else	
+	if (coco_slot) {
+		coco_slot --; coco_it = coco_slots [coco_slot];
+#endif
+
+		coco_x [coco_it] = rdx << FIX_BITS;
+		coco_y [coco_it] = rdy << FIX_BITS;
+		coco_vx [coco_it] = coco_vx_precalc [rda];
+		coco_vy [coco_it] = coco_vy_precalc [rda];
+
+		SFX_PLAY (SFX_COCO);
+	} 
+
 }
 #endif
 
@@ -77,15 +102,18 @@ void simplecoco_destroy (void) {
 #endif
 
 void simplecoco_do (void) {
-	coco_it = COCOS_MAX; while (coco_it --) {
+	coco_it = COCOS_MAX; while (coco_it --) {		
 		spr_idx = SPR_COCOS_BASE + coco_it;
+
+
 		if (coco_y [coco_it]) {
 			// Move
 			_coco_x = coco_x [coco_it] + coco_vx [coco_it];
 			_coco_y = coco_y [coco_it] + coco_vy [coco_it];
 
 			// Out of bounds
-			if (_coco_x < 0 || _coco_x > 256<<FIX_BITS || _coco_y < 0 || _coco_y > 192<<FIX_BITS) {
+			if (_coco_x < 0 || _coco_x > (PRX_MAX_COCO<<FIX_BITS) || _coco_y < (16<<FIX_BITS) || _coco_y > (PRY_MAX_COCO<<FIX_BITS)) {
+
 #ifdef ONE_PER_ENEM
 				coco_y [coco_it] = 0;
 #else
@@ -101,6 +129,7 @@ void simplecoco_do (void) {
 			spr_on [spr_idx] = 1;
 			spr_x [spr_idx] = rdx;
 			spr_y [spr_idx] = rdy;
+
 			spr_next [spr_idx] = sprite_cells [COCO_CELL_BASE];
 
 			// Collide w/player
@@ -122,5 +151,6 @@ void simplecoco_do (void) {
 			coco_x [coco_it] = _coco_x;
 			coco_y [coco_it] = _coco_y;
 		} else spr_on [spr_idx] = 0;
+
 	}
 }

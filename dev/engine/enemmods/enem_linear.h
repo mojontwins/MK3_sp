@@ -1,9 +1,9 @@
-// MT MK3 ZX v0.1 [Ninjajar_M]
-// Copyleft 2017 by The Mojon Twins
+// MT MK3 OM v0.4 [Cheril in Otro Bosque]
+// Copyleft 2017, 2018 by The Mojon Twins
 
 // Enem. type linear
 
-	if (!en_washit [gpit]) if (!_en_state || half_life) {
+	if (!en_washit [gpit]) {
 #ifdef LINEAR_COLLIDES		
 		rdx = _en_x;
 #endif
@@ -72,5 +72,5 @@
 	}
 
 	if (_en_mx) rda = (_en_x >> 3); else if (_en_my) rda = (_en_y >> 3); else rda = (frame_counter >> 3);
-	if (spr_id == 0xff) spr_id = en_s [gpit] + ((_en_x >> 3) & 1) + (rda & 1);
+	if (spr_id == 0xff) spr_id = en_s [gpit] + (rda & 1);
 	

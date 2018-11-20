@@ -1,5 +1,5 @@
-// MT MK3 ZX v0.1 [Ninjajar_M]
-// Copyleft 2017 by The Mojon Twins
+// MT MK3 OM v0.4 [Cheril in Otro Bosque]
+// Copyleft 2017, 2018 by The Mojon Twins
 
 // Breakable walls
 
@@ -9,9 +9,12 @@ void breakable_init (void) {
 		brk_slots [gpit] = gpit;
 	}
 	brk_slot = BREAKABLE_MAX;
+	process_breakable = 0;
 }
 
 void breakable_break (void) {
+	if (rdx > 14 || rdy > 9) return;
+
 	// Expects tile attributes at rdx, rdy,
 
 #if !defined (PLAYER_HITTER)
@@ -38,7 +41,7 @@ void breakable_break (void) {
 
 			process_breakable = 1;
 			
-			rdt = BREAKABLE_BREAKING_TILE;
+			_x = rdx; _y = rdy; _t = BREAKABLE_BREAKING_TILE;
 			set_map_tile ();
 		}
 	}
@@ -50,6 +53,7 @@ void breakable_do (void) {
 	process_breakable = 0;
 	gpit = BREAKABLE_MAX; while (gpit --) {
 		if (brk_ac [gpit]) {
+			if (brk_ac [gpit] == BREAKABLE_FRAMES_DESTROY) SFX_PLAY (SFX_BRICK);
 			process_breakable = 1;
 			brk_ac [gpit] --;
 			if (brk_ac [gpit] == 0) {
@@ -61,7 +65,7 @@ void breakable_do (void) {
 				if (brk_sp [gpit] && BREAKABLE_TILE_EXPRESION) 
 					rdt = BREAKABLE_TILE_GET;
 #endif
-				set_map_tile ();
+				_x = rdx; _y = rdy; _t = rdt; set_map_tile ();
 			}
 		}
 	}

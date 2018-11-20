@@ -4,6 +4,10 @@
 // librarian
 
 void librarian_get_resource (unsigned char rn, unsigned char *dst) {
+#ifndef USE_EXOMIZER
 	unpack (library [rn], dst);
+#else
+	cpc_UnExo ((int *)(library [rn]), (int *)(dst));
+#endif
 }
 

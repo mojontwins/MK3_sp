@@ -1,5 +1,5 @@
-// MT MK3 ZX v0.1 [Ninjajar_M]
-// Copyleft 2017 by The Mojon Twins
+// MT MK3 OM v0.4 [Cheril in Otro Bosque]
+// Copyleft 2017, 2018 by The Mojon Twins
 
 // random.h
 // New random routines. Code by Patrik Rak, adapted by na_th_an

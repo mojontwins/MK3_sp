@@ -1,25 +1,32 @@
-// MT MK3 ZX v0.1 [Ninjajar_M]
-// Copyleft 2017 by The Mojon Twins
+// MT MK3 OM v0.4 [Cheril in Otro Bosque]
+// Copyleft 2017, 2018 by The Mojon Twins
 
 // Misc stuff
 
+#ifdef SPECCY
 void pad_read (void) {
 	// Thanks for this, Nicole & nesdev!
 	// https://forums.nesdev.com/viewtopic.php?p=179315#p179315
-#ifdef SPECCY
 	pad_this_frame = pad0;
 	pad0 = ((joyfunc) (&keys));			// Read pads here.
 	pad_this_frame = (pad_this_frame ^ pad0) & pad0;
-#endif
 }
+#endif
 
 unsigned char *map_base_address (void) {
 #ifdef MAP_FORMAT_NOINDEX
 #ifdef MAP_FORMAT_PACKED
-	return (unsigned char *) (map + n_pant * 75);
+	#ifdef MAP_HEIGHT_12
+		return (unsigned char *) (map + n_pant * 96);
+	#else
+		return (unsigned char *) (map + n_pant * 75);
+	#endif
 #else
-	rda = n_pant << 1;
-	return (unsigned char *) (map + n_pant * 150);
+	#ifdef MAP_HEIGHT_12
+		return (unsigned char *) (map + n_pant * 192);
+	#else
+		return (unsigned char *) (map + n_pant * 150);
+	#endif
 #endif
 #else
 	rdc = n_pant << 1;
@@ -47,5 +54,30 @@ void alter_map (void) {
 
 #ifdef MAP_FORMAT_UNPACKED
 	*((unsigned char *) (map_base_address () + rdx + (rdy + (rdy << 1) + (rdy << 2) + (rdy << 3)))) = rdt;
+#endif
+}
+
+void button_pressed (void) {
+#ifdef SPECCY	
+	return (sp_GetKey () || ((((joyfunc) (&keys)) & sp_FIRE) == 0));
+#endif
+#ifdef CPC
+	return cpc_AnyKeyPressed ();
+#endif
+}
+
+void wait_button (void) {
+	while (button_pressed ());
+	while (!button_pressed ());
+}
+
+void delay (unsigned char cycles) {
+#ifdef SPECCY
+	isrc = 0;
+	while (isrc < cycles);
+#endif
+#ifdef CPC
+	isrc [0] = 0;
+	while (isrc < cycles) { gpit = 6; while (gpit --); }
 #endif
 }

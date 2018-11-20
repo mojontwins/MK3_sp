@@ -1,5 +1,5 @@
-// MT MK3 ZX v0.1 [Ninjajar_M]
-// Copyleft 2017 by The Mojon Twins
+// MT MK3 OM v0.4 [Cheril in Otro Bosque]
+// Copyleft 2017, 2018 by The Mojon Twins
 
 // Hitter: Implements punches, swords, whips...
 
@@ -9,6 +9,7 @@ void hitter_do (void) {
 #ifdef PLAYER_PUNCHES
 		hitter_y = pry + 6;
 		hitter_x = pfacing ? (prx - hitter_offs [hitter_frame]) : (prx + hitter_offs [hitter_frame]);
+		if (hitter_x > 240) hitter_x = 0;
 #endif
 
 		if (hitter_frame >= HITTER_HOT_MIN && hitter_frame <= HITTER_HOT_MAX) {
@@ -25,9 +26,11 @@ void hitter_do (void) {
 
 		// Collision w/ breakable tiles
 		if (hitter_hs_y != 0xff && hitter_hs_y >= 16) {
-			rdx = hitter_hs_x >> 4; rdy = (hitter_hs_y >> 4) - 1;
-			rdi = rdx | (rdy << 4);
-			if (scr_attr [rdi] & BREAKABLE_BIT)	breakable_break ();
+			rdx = hitter_hs_x >> 4; if (rdx < 15) {
+				rdy = (hitter_hs_y >> 4) - 1;
+				rdi = rdx | (rdy << 4);
+				if (scr_attr [rdi] & BREAKABLE_BIT)	breakable_break ();
+			}
 		}
 
 	} else {

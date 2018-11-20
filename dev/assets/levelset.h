@@ -1,47 +1,51 @@
-// MT MK3 ZX v0.1 [Ninjajar_M]
-// Copyleft 2017 by The Mojon Twins
+// MT MK3 OM v0.4 [Cheril in Otro Bosque]
+// Copyleft 2017, 2018 by The Mojon Twins
 
 // levelset.h
 // Manually compiled assets lists for levels
 
 // Costomize as needed
 
+// If you need constants as declared by the converters,
+// Add / include them here
+
+#ifdef SPECCY
+	#include "..\ports\zx\bin\enems.h"
+	#include "..\ports\zx\bin\hotspots.h"
+#endif
+#ifdef CPC
+	#include "..\ports\cpc\bin\enems.h"
+	#include "..\ports\cpc\bin\hotspots.h"
+#endif
+
 // For me each level is:
 
-// ts_patterns
 // ts_tilemaps
 // behs
-// ss
 // map
 // enems
 // hotspots
+// script index in script pool
 // ini_x (tiles)
 // ini_y (tiles)
-// scr_x
+// scr_ini
+// map_width
 
-#define PLAYER_INI_X	7
-#define PLAYER_INI_Y	8
-#define PLAYER_SCR_INI	9
-#define LEVEL_MAP_W		10
+#define SCRIPT_INDEX		0
+#define PLAYER_INI_X		1
+#define PLAYER_INI_Y		2
+#define PLAYER_SCR_INI		3
+#define LEVEL_MAP_W			4
+#define MAX_HOTSPOTS_TYPE_1	5
 
-const unsigned char level0 [] = {
-	LEVEL0_TS_PATTERNS_C, LEVEL0_TS_TILEMAPS_C, LEVEL0_BEHS_C, 
-	LEVEL0_SS_C, LEVEL0_MAP_C, LEVEL0_ENEMS_C, LEVEL0_HOTSPOTS_C,
-	3, 3, 0, 10
-};
-
-const unsigned char level1 [] = {
-	LEVEL1_TS_PATTERNS_C, LEVEL1_TS_TILEMAPS_C, LEVEL1_BEHS_C, 
-	LEVEL1_SS_C, LEVEL1_MAP_C, LEVEL1_ENEMS_C, LEVEL1_HOTSPOTS_C,
-	2, 5, 0, 10
-};
-
-const unsigned char level2 [] = {
-	LEVEL2_TS_PATTERNS_C, LEVEL2_TS_TILEMAPS_C, LEVEL2_BEHS_C, 
-	LEVEL1_SS_C, LEVEL2_MAP_C, LEVEL2_ENEMS_C, LEVEL2_HOTSPOTS_C,
-	2, 2, 0, 0
+const unsigned char level0[] = {
+	0,
+	3, 3, 
+	15,
+	5,
+	MAX_HOTSPOTS_0_TYPE_1
 };
 
 const unsigned char * levels [] = {
-	level0, level1, level2
+	level0
 };

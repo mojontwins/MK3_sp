@@ -1,5 +1,5 @@
-// MT MK3 ZX v0.1 [Ninjajar_M]
-// Copyleft 2017 by The Mojon Twins
+// MT MK3 OM v0.4 [Cheril in Otro Bosque]
+// Copyleft 2017, 2018 by The Mojon Twins
 
 // main.h - You see flags
 
@@ -8,10 +8,16 @@ void main (void) {
 	sprite_cells_init ();
 	
 	while (1) {
-		gpit = 1; controls_setup ();
+		game_title (); 			// Set option in gpit!
 
-		level = 2;
+		level = 0;
+#ifdef HOTSPOT_TYPE_STAR		
+		pstars = 0;
+#endif	
 		plife = LIFE_INI;
+#ifdef ENABLE_TILE_GET		
+		ptile_get_ctr = 0;
+#endif		
 
 		while (1) {
 			level_setup ();
@@ -22,9 +28,11 @@ void main (void) {
 				game_over ();
 				break;
 			} else {
-				if (level < 3)
+				/*if (level < 3)
 					level ++;
-				else game_ending ();
+				else*/ 
+				game_ending ();
+				break;
 			}
 		}
 	}

@@ -184,9 +184,11 @@ void unpack (unsigned char * address, unsigned char * destination) {
 	ram_address 	[0] = (unsigned int) (address);
 	ram_destination	[0] = (unsigned int) (destination);
 	#asm	
+		di
 		ld hl, (_ram_address)
 		ld de, (_ram_destination)
 		call depack
+		ei
 	#endasm
 }
 #endif

@@ -1,5 +1,5 @@
-// MT MK3 ZX v0.1 [Ninjajar_M]
-// Copyleft 2017 by The Mojon Twins
+// MT MK3 OM v0.4 [Cheril in Otro Bosque]
+// Copyleft 2017, 2018 by The Mojon Twins
 
 // Player movement & stuff
 
@@ -54,50 +54,78 @@ void player_reset_movement (void) {
 #ifdef PLAYER_FLOATS
 	pfloat = 0;
 #endif
+#ifdef PLAYER_PUSH_BOXES_ANIMATE
+	ppushing = 0;
+#endif
 }
 
 #ifdef PLAYER_PROCESS_BLOCK
 #ifdef PLAYER_GRAVITY
 void player_process_block (signed char x, signed char y) {
-	if (y) y --;
-	rdc = x + (y << 4);
-	rda = scr_buff [rdc];
-	switch (rda) {
+	rdxx = x; rdyy = y;
+
+	if (rdyy) rdyy --;
+	rdc = rdxx + (rdyy << 4);
+	rda = scr_attr [rdc] & 1;
+	if (rda) {
 #ifdef PLAYER_PUSH_BOXES		
-		case 14:
 #ifdef PLAYER_FIRE_TO_PUSH
-			if (BUTTON_A (pad)) 
+		if (BUTTON_A (pad)) 
 #endif		
-			{
-				// push block
-				pbx1 = x;
-				if (CONTROLLER_LEFT (pad)) {
-					if (x > 0) if (0 == scr_attr [x - 1 + (y << 4)]) pbx1 = x - 1;
-				} else if (CONTROLLER_RIGHT (pad)) {
-					if (x < 15) if (0 == scr_attr [x + 1 + (y << 4)]) pbx1 = x + 1;
-				}
-				if (pbx1 != x) {
-					set_map_tile (x, y, 0); set_map_tile (pbx1, y, 14);
-					//sfx_play (SFX_BUTT_HIT, SC_LEVEL);
-				}
+		{
+			// push block
+			pbx1 = rdxx;
+			if (CONTROLLER_LEFT (pad)) {
+				if (rdxx > 0) if (0 == scr_attr [rdxx - 1 + (rdyy << 4)]) pbx1 = rdxx - 1;
+			} else if (CONTROLLER_RIGHT (pad)) {
+				if (rdxx < 15) if (0 == scr_attr [rdxx + 1 + (rdyy << 4)]) pbx1 = rdxx + 1;
+			}
+			if (pbx1 != rdxx) {
+#ifdef FLOATY_PUSH_BOXES
+				_t = scr_buff [rdc];
+				_x = rdxx;
+				_y = rdyy;
+				set_map_tile ();
+
+				_t = 14;
+				rdf = (rdyy << 4) | pbx1;
+				scr_attr [rdf] = 11;
+				_x = SCR_X + (pbx1 << 1); _y = SCR_Y + (rdyy << 1);
+				DRAW_TILE_UPD ();
+
+				fpb_add ();
+#else					
+				_t = 0;
+				_x = rdxx;
+				_y = rdyy;
+				set_map_tile (); 
+				_t = 14;
+				_x = pbx1;
+				_y = rdyy;
+				set_map_tile ();
+#endif					
+				hotspots_paint ();
+				SFX_PLAY (SFX_COCO);
+			}
+#ifdef PLAYER_PUSH_BOXES_ANIMATE
+				ppushing = PLAYER_PUSH_BOXES_ANIMATE;
+#endif				
 
 #ifdef PLAYER_FIRE_TO_PUSH				
 				pfiring = 1;
 #endif								
 			}
-			break;
 #endif
-
+	} else {
 #ifdef HOTSPOT_TYPE_KEY			
-		case 15:
-			// Key hole
-			if (pkeys) {
-				pkeys --;
-				bolts_clear_bolt ();
-				set_map_tile (x, y, 0);
-				//sfx_play (SFX_CHOF, SC_LEVEL);
-			}
-			break;
+		// Key hole
+		if (pkeys) {
+			pkeys --;
+			bolts_clear_bolt ();
+			_t = 0; _x = rdxx; _y = rdyy; 
+			set_map_tile ();
+			SFX_PLAY (SFX_COCO);
+		}
 #endif				
 	}
 }
@@ -129,8 +157,22 @@ void player_process_block (signed char x, signed char y, unsigned char direction
 					}
 				}
 				if (pbx1 != x || pby1 != y) {
-					set_map_tile (x, y, 0); set_map_tile (pbx1, pby1, 14);
-					//sfx_play (SFX_BUTT_HIT, SC_LEVEL);
+					_x = x; _y = y; _t = FLOATY_PUSH_BOXES_SUBST; set_map_tile ();
+					_x = pbx1; _y = pby1; _t = 14; set_map_tile ();
+					hotspots_paint ();
+					SFX_PLAY (SFX_COCO);
+
+					#ifdef PLAYER_PUSH_BOXES_CRUSH_CRUDE
+					rdx = pbx1 << 4;
+					rdy = (pby1+1) << 4;
+					gpit = 3; while (gpit --) {
+						if (en_t [gpit] &&
+							en_x [gpit] + 15 >= rdx && en_x [gpit] <= rdx + 15 &&
+							en_y [gpit] + 15 >= rdy && en_y [gpit] <= rdy + 15) {
+							enems_drain ();
+						}
+					}
+					#endif
 				}
 
 #ifdef PLAYER_FIRE_TO_PUSH				
@@ -145,8 +187,9 @@ void player_process_block (signed char x, signed char y, unsigned char direction
 			if (pkeys) {
 				pkeys --;
 				bolts_clear_bolt ();
-				set_map_tile (x, y, 0);
-				//sfx_play (SFX_CHOF, SC_LEVEL);
+				_x = x; _y = y; _t = 0;
+				set_map_tile ();
+				SFX_PLAY (SFX_COCO);
 			}
 			break;
 #endif				
@@ -182,15 +225,16 @@ void player_init (void) {
 }
 
 void player_hit (void) {
-	//sfx_play (SFX_ENEMY_HIT, SC_PLAYER);
-
 	SCREEN_UPDATE;
+	SFX_PLAY (SFX_DEATH);
 
 #ifdef PLAYER_DIE_AND_RESPAWN
 	//player_render ();
+#ifdef SPECCY	
 	pad0 = 0xff;
+#endif	
 	//music_pause (1);
-	//delay (60);
+	delay (60);
 	//music_pause (0);
 	player_reset_movement ();
 	player_restore_safe_spot ();
@@ -267,17 +311,30 @@ void player_move (void) {
 		if (guay_ct == 0) pflickering = ticks;
 	} else
 #endif 
+
+#ifdef SPECCY	
 		pad = pad0;
+#endif
+#ifdef CPC
+		pad = 0;
+#endif	
 
 #ifdef ENABLE_HOLES
 	if (pholed) pad = 0xff;
 #endif	
 
+#ifdef PLAYER_PUSH_BOXES_ANIMATE
+	if (ppushing) {
+		pad = 0xff;
+		ppushing --;
+	}
+#endif
+
 #ifdef ENABLE_EVIL_TILE
 	evil_tile_hit = 0;
 #endif
 
-#if defined (EVIL_TILE_MULTI) || defined (EVIL_TILE_CENTER)
+#if defined (EVIL_TILE_MULTI) || defined (EVIL_TILE_CENTER) || defined (PLAYER_DIE_AND_RESPAWN)
 	pcx = px; pcy = py;
 #endif
 
@@ -341,18 +398,20 @@ void player_move (void) {
 
 	// Collision
 	//prx = px >> FIX_BITS;
-	if (py < 0) { py = pry = 0; }
-	else if (py > (192<<FIX_BITS)) pry = 192;
-	else pry = py >> FIX_BITS;
+	if (py < ABSOLUTE_BOTTOM<<FIX_BITS) { py = ABSOLUTE_BOTTOM<<FIX_BITS; }
+	else if (py > (PRY_MAX<<FIX_BITS)) { py = PRY_MAX<<FIX_BITS; }
+	
+	pry = py >> FIX_BITS;
 
 	cx1 = prx >> 4;
 	cx2 = (prx + 7) >> 4;
-	if (pvy + pgtmy) {
-		if (pvy + pgtmy < 0) {
+	rdsint = pvy + pgtmy;
+	if (rdsint) {
+		if (rdsint < 0) {
 #ifdef PLAYER_8_PIXELS
 			cy1 = cy2 = (pry + 6) >> 4;
 #else
-			cy1 = cy2 = pry >> 4;
+			cy1 = cy2 = (pry + 1) >> 4;
 #endif
 			cm_two_points ();
 #ifdef PLAYER_GENITAL
@@ -365,7 +424,7 @@ void player_move (void) {
 #ifdef PLAYER_8_PIXELS
 				pry = ((cy1 + 1) << 4) - 6;
 #else
-				pry = (cy1 + 1) << 4;
+				pry = ((cy1 + 1) << 4) - 1;
 #endif
 				py = pry << FIX_BITS;
 			} else {
@@ -391,10 +450,14 @@ void player_move (void) {
 				}
 #endif
 			}
-		} else if (pvy + pgtmy > 0)	{
+		} else {
 			cy1 = cy2 = (pry + 15) >> 4; 
 			cm_two_points (); 
-	 		if (((pry - 1) & 15) < 4 && ((at1 & (OBSTACLE_BIT | PLATFORM_BIT)) || (at2 & (OBSTACLE_BIT | PLATFORM_BIT)))) {
+#ifdef PRECISE_DESCENDING_COLLISION			
+	 		if (((pry - 1) & 15) < (1 + (rdsint >> 4)) && ((at1 & (OBSTACLE_BIT | PLATFORM_BIT)) || (at2 & (OBSTACLE_BIT | PLATFORM_BIT)))) {
+#else
+	 		if ((at1 & (OBSTACLE_BIT | PLATFORM_BIT)) || (at2 & (OBSTACLE_BIT | PLATFORM_BIT))) {
+#endif	 			
 				pgotten = pvy = 0;
 				pry = (cy1 - 1) << 4;
 				py = pry << FIX_BITS;
@@ -416,8 +479,8 @@ void player_move (void) {
 		}
 #ifdef PLAYER_PROCESS_BLOCK
 #ifdef PLAYER_GENITAL		
-		if (at1 == SPECIAL_BEH) player_process_block (cx1, cy1, 0);
-		if (at2 == SPECIAL_BEH) player_process_block (cx2, cy2, 0);
+		if ((at1 & SPECIAL_BEH) == SPECIAL_BEH) player_process_block (cx1, cy1, 0);
+		if ((cx1 != cx2) && ((at2 & SPECIAL_BEH) == SPECIAL_BEH)) player_process_block (cx2, cy1, 0);
 #endif		
 #endif
 	}
@@ -473,7 +536,9 @@ void player_move (void) {
 	// Jump!
 
 #ifdef PLAYER_JUMPS
-	if (BUTTON_B || CONTROLLER_UP(pad)) {
+	
+	// CUSTOM: No up for jumping in this game!
+	if (BUTTON_B(pad) /*|| CONTROLLER_UP(pad)*/) {
 		if (!pjb) {
 			pjb = 1;
 #ifdef ENABLE_WATER
@@ -504,7 +569,8 @@ void player_move (void) {
 #endif					
 					pj = 1; pjustjumped = 1;
 					pvy = -PLAYER_VY_JUMP_INITIAL;
-					//sfx_play (SFX_JUMP, SC_PLAYER);
+
+					SFX_PLAY (SFX_JUMP);
 
 #ifdef PLAYER_DIE_AND_RESPAWN
 					if (ppossee) {
@@ -529,7 +595,7 @@ void player_move (void) {
 	// Monono!
 
 #ifdef PLAYER_MONONO
-	if (!(BUTTON_B || CONTROLLER_UP(pad))) { pj = 0; pvylast = -PLAYER_VY_JUMP_INITIAL; } else {
+	if (!(BUTTON_B(pad) || CONTROLLER_UP(pad))) { pj = 0; pvylast = -PLAYER_VY_JUMP_INITIAL; } else {
 		if (ppossee || pgotten) {
 			pvy = SATURATE_N (pvylast - PLAYER_AY_JUMP, -PLAYER_VY_JUMP_MAX);
 			pvylast = pvy;
@@ -540,7 +606,7 @@ void player_move (void) {
 #endif	
 
 #ifdef PLAYER_JETPAC
-	if (BUTTON_B || CONTROLLER_UP(pad)) {
+	if (BUTTON_B(pad) || CONTROLLER_UP(pad)) {
 		pvy = SATURATE_N (pvy - PLATER_AY_JETPAC, -PLAYER_VY_JETPAC_MAX);		
 		pthrust = 1;
 		if (!(thrustct)) fumettos_add ();
@@ -637,14 +703,14 @@ void player_move (void) {
 	
 	// Collision
 	if (px < (4<<FIX_BITS)) px = 4<<FIX_BITS;
-	else if (px > (228<<FIX_BITS)) px = 228<<FIX_BITS;
+	else if (px > (PRX_MAX<<FIX_BITS)) px = PRX_MAX<<FIX_BITS;
 	
 	prx = px >> FIX_BITS;
 	
 #ifdef PLAYER_8_PIXELS
 	cy1 = (pry + 6) >> 4;
 #else
-	cy1 = pry >> 4;
+	cy1 = (pry + 1) >> 4;
 #endif
 	cy2 = (pry + 15) >> 4;
 	if (pvx + pgtmx) {
@@ -709,14 +775,23 @@ void player_move (void) {
 		}
 #ifdef PLAYER_PROCESS_BLOCK
 #ifdef PLAYER_GRAVITY
-		if (at1 == SPECIAL_BEH) player_process_block (cx1, cy1);
-		if (at2 == SPECIAL_BEH) player_process_block (cx2, cy2);
+		if ((at1 & SPECIAL_BEH) == SPECIAL_BEH) player_process_block (cx1, cy1);
+		if ((cy1 != cy2) && ((at2 & SPECIAL_BEH) == SPECIAL_BEH)) player_process_block (cx1, cy2);
 #else
-		if (at1 == SPECIAL_BEH) player_process_block (cx1, cy1, 1);
-		if (at2 == SPECIAL_BEH) player_process_block (cx2, cy2, 1);
+		if ((at1 & SPECIAL_BEH) == SPECIAL_BEH) player_process_block (cx1, cy1, 1);
+		if ((cy1 != cy2) && ((at2 & SPECIAL_BEH) == SPECIAL_BEH)) player_process_block (cx1, cy2, 1);
 #endif
 #endif
 	}
+
+	// In the CPC it's interesting to byte-adjust X coordinates
+	// if player has stopped.
+#ifdef CPC
+	if ((pvx + pgtmx) == 0 && (prx & 0x03)) {
+		prx = prx & 0xfc; 	// >>2)<<2)
+		px = prx << FIX_BITS;
+	}
+#endif	
 
 	// Once the player has moved, center point detections
 
@@ -739,18 +814,22 @@ void player_move (void) {
 #ifdef ENABLE_TILE_GET
 	if (at1 & TILE_GET_BIT) {
 
-		rdx = cx1; rdy = cy1 - 1, rdt = 0;
+		_x = cx1; _y = cy1 - 1, _t = 0;
 		set_map_tile ();
-		//sfx_play (SFX_RING, SC_LEVEL);
+		SFX_PLAY (SFX_COIN);
 
 #ifdef TILE_GET_COUNT_ON_FLAG
 		flags [TILE_GET_COUNT_ON_FLAG] ++;
 #else 
-		tile_get_ctr ++;
-		if (tile_get_ctr == 100) {
-			tile_get_ctr = 1; 
+		ptile_get_ctr ++;
+		if (ptile_get_ctr == 25) {
+			ptile_get_ctr = 0; 
 			plife ++;
-			//sfx_play (SFX_START, SC_PLAYER);
+#ifdef ENABLE_TIMED_MESSAGE			
+			timed_message_print ("25 COINS FOR ONE EXTRA LIFE!");
+			SCREEN_UPDATE;
+#endif			
+			SFX_PLAY (SFX_ITEM);
 		}
 #endif	
 
@@ -782,9 +861,14 @@ void player_move (void) {
 #ifdef EVIL_TILE_MULTI
 		px = pcx; py = pcy;
 #endif
-#if defined (EVIL_TILE_CENTER) && !defined (PLAYER_DIE_AND_RESPAWN)
+#if defined (EVIL_TILE_CENTER) && !defined (PLAYER_DIE_AND_RESPAWN) && !defined (PLAYER_GENITAL)
 		px = pcx; py = pcy;
 		pvy = -PLAYER_V_REBOUND_MULTI;
+#endif
+#if defined (EVIL_TILE_CENTER) && !defined (PLAYER_DIE_AND_RESPAWN) && defined (PLAYER_GENITAL)
+		px = pcx; py = pcy;
+		if (ABS (pvx) > ABS (pvy)) pvx = ADD_SIGN (-pvx, PLAYER_V_REBOUND_MULTI);
+		else pvy = ADD_SIGN (-pvy, PLAYER_V_REBOUND_MULTI);
 #endif
 
 		if (
@@ -795,7 +879,7 @@ void player_move (void) {
 #endif
 		)
 		pwashit = 1;
-#ifdef PLAYER_DIE_AND_RESPAWN 
+#if defined (PLAYER_DIE_AND_RESPAWN)
 		else {
 			px = pcx; py = pcy;
 			pvy = -PLAYER_V_REBOUND_MULTI;
@@ -827,10 +911,29 @@ void player_move (void) {
 	// Float
 
 #ifdef PLAYER_FLOATS	
-	if (!ppossee && !pj && (pad0 & PAD_DOWN)) {
+	if (!ppossee && !pj && (CONTROLLER_DOWN (pad))) {
 		if (!pfloat) pvy = 0;
 		pfloat = 1;
 	} else pfloat = 0;
+#endif
+
+#ifdef SCRIPTING_ON
+#ifdef ACTION_KEY_DOWN
+	if (CONTROLLER_DOWN (pad)) {
+		if (down_debounce == 0) {
+#ifdef FIRE_SCRIPT_WITH_ANIMATION
+			if (ppossee){
+				player_reset_movement ();
+				use_ct = 1;
+			} 
+#else
+			game_run_fire_script ();
+			if (commands_executed) pfiring = 1;
+#endif
+		}
+		down_debounce = 1;
+	} else down_debounce = 0;
+#endif
 #endif
 
 	// PAD B Stuff!
@@ -869,6 +972,7 @@ void player_move (void) {
 #endif
 
 #ifdef SCRIPTING_ON
+#ifdef ACTION_KEY_FIRE
 		if (!pfiring) {
 #ifdef FIRE_SCRIPT_WITH_ANIMATION
 			if (ppossee){
@@ -880,6 +984,7 @@ void player_move (void) {
 			if (commands_executed) pfiring = 1;
 #endif
 		}
+#endif
 #endif
 
 #ifdef PLAYER_PUAS
@@ -931,7 +1036,7 @@ void player_move (void) {
 		|| pwater
 #endif
 	) pbutt = 0; else {
-		if (BUTTON_B) {
+		if (BUTTON_B(pad)) {
 			if (!pbutt) {
 				pbutt = 1; pj = 0;
 				//sfx_play (SFX_BUTT_FALL, SC_PLAYER);			
@@ -942,7 +1047,7 @@ void player_move (void) {
 
 	// Hitter todo
 	/*
-	if ((BUTTON_B) && !hitter_on && pstatespradder) {
+	if ((BUTTON_B(pad)) && !hitter_on && pstatespradder) {
 		hitter_on = 1; hitter_frame = 0;
 		//sfx_play (SFX_SHOOT, SC_PLAYER);
 	}
@@ -950,18 +1055,42 @@ void player_move (void) {
 	
 	// Solve facing
 #ifdef PLAYER_GENITAL	
-	if (pfacingv != 0xff) pfacing = pfacingv; else if (pfacingh != 0xff) pfacing = pfacingh;
+	#ifdef GENITAL_HORIZONTAL_PREFERED
+		if (pfacingh != 0xff) pfacing = pfacingh; else if (pfacingv != 0xff) pfacing = pfacingv;
+	#else
+		if (pfacingv != 0xff) pfacing = pfacingv; else if (pfacingh != 0xff) pfacing = pfacingh;
+	#endif
 #endif
 
 	// Sprite cell selection is usually pretty custom...
 
-	if (ppossee || pgotten) {
-		if (ABS (pvx) > PLAYER_VX_MIN) {
-			psprid = walk_frames [(prx >> 3) & 3];
-		} else psprid = CELL_IDLE;
-	} else psprid = CELL_AIRBORNE;
+	#ifdef SPECCY
+		if (phit) {
+			psprid = CELL_HURT;
+		} else {
+			if (ABS (pvx) > PLAYER_VX_MIN) {
+				psprid = CELL_WALK_BASE + ((prx >> 4) & 3);
+			} else if (ABS (pvy) > PLAYER_VY_MIN) {
+				psprid = CELL_WALK_BASE + ((pry >> 4) & 3);
+			} else psprid = CELL_IDLE;
 
-	psprid += pfacing;
+			psprid += pfacing;
+		}
+	#endif
+
+	#ifdef CPC
+		if (phit) {
+			psprid = CELL_HURT;
+		} else {
+			if (ABS (pvx) > PLAYER_VX_MIN) {
+				psprid = walk_frames [((prx >> 4) & 3)];
+			} else if (ABS (pvy) > PLAYER_VY_MIN) {
+				psprid = walk_frames [((pry >> 4) & 3)];
+			} else psprid = CELL_IDLE;
+
+			psprid += pfacing;
+		}
+	#endif
 
 	spr_on [SPR_PLAYER] = (pflickering == 0) || half_life;
 	spr_x [SPR_PLAYER] = prx - 4;
