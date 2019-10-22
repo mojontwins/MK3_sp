@@ -1,5 +1,5 @@
-// MT MK3 OM v0.4 [Cheril in Otro Bosque]
-// Copyleft 2017, 2018 by The Mojon Twins
+// MT MK3 OM v0.6 [Cheman]
+// Copyleft 2017, 2019 by The Mojon Twins
 
 // ----------------------------------------------------------
 // System 
@@ -10,25 +10,17 @@
 	int key_jump;
 
 	struct sp_Rect spritesClipValues = { 
-		#ifdef MAP_HEIGHT_12
-			SCR_Y + 1,
-		#else
-			SCR_Y, 
-		#endif
+		SCR_Y + 1,
 		SCR_X, 
-		#ifdef MAP_HEIGHT_12
-			22,
-		#else
-			20, 
-		#endif
-		#ifdef MAP_WIDTH_16
-			32
-		#else
-			30
-		#endif 
+		22,
+		32
 	};
+
+	struct sp_Rect ensClipRects [N_ENEMS];
+
 	struct sp_Rect *spritesClip;
 	struct sp_Rect fsRect = {0, 0, 24, 32};
+
 
 	struct sp_SS *sp_sw [SW_SPRITES_ALL];
 	unsigned char *spr_next [SW_SPRITES_ALL];
@@ -37,6 +29,12 @@
 	#ifdef SE_BEEPER
 		unsigned char queued_sound;
 	#endif
+
+	signed char sp_sw_coy [SW_SPRITES_ALL], sp_sw_cox [SW_SPRITES_ALL];
+	#define SP_SW_COY (sp_sw_coy [gpit])
+	#define SP_SW_COX (sp_sw_cox [gpit])
+
+	unsigned char dynamic_memory_pool [1+15*NUMBLOCKS];
 #endif
 
 #ifdef CPC
@@ -48,22 +46,28 @@
 	#define KEY_BUTTON_B	5
 	#define KEY_ENTER		6
 	#define KEY_ESC			7
+	#define KEY_AUX1		8
+	#define KEY_AUX2		9
 	
 	typedef struct sprite {
 		int sp0;					// 0
 		int sp1; 					// 2
 		int coord0;
-		int coord1;
+		signed char cox, coy;		// 6 7
 		unsigned char cx, cy; 		// 8 9
 		unsigned char ox, oy;		// 10 11
-		unsigned char move;
-		unsigned char move1;
+		void *invfunc;				// 12
+		void *updfunc;				// 14
 	} SPR;
 
 	unsigned char *spr_next [SW_SPRITES_ALL];
 
 	//SPR sp_sw [SW_SPRITES_ALL];
 	SPR sp_sw [SW_SPRITES_ALL] @ BASE_SPRITES;
+	#define SP_SW_COY (sp_sw [gpit].coy)
+	#define SP_SW_COX (sp_sw [gpit].cox)
+
+	unsigned char spr_order [SW_SPRITES_ALL];
 #endif
 
 unsigned char spr_idx;
@@ -83,20 +87,22 @@ unsigned char *gp_gen, *gp_aux;
 unsigned char *gp_int;
 unsigned char pad0, pad, pad_this_frame;
 unsigned char ticker;
-unsigned char _x, _y, _n, _t;
+unsigned char _x, _y, _n, _t, _d1, _d2;
+unsigned char __x, __y, __d;
 
 // ----------------------------------------------------------
 // Collision 
 // ----------------------------------------------------------
-unsigned char cx1, cx2, cy1, cy2, at1, at2;
+unsigned char cx1, cx2, cy1, cy2, at1, at2, t1, t2;
 
 // ----------------------------------------------------------
 // Current level, screen, etc
 // ----------------------------------------------------------
-unsigned char level;
+unsigned char level, olevel;
 unsigned char *c_level;
+unsigned char c_level_map_w;
 unsigned char n_pant, on_pant;
-unsigned char half_life, frame_counter, hl_proc;
+unsigned char half_life, flip_flop, frame_counter, hl_proc;
 unsigned char do_game, first_time;
 
 // ----------------------------------------------------------
@@ -139,8 +145,24 @@ unsigned char guay_ct, use_ct, no_ct;
 
 unsigned char prx, pry;
 signed int px, py;
-signed char pvx;
-signed int pvy;
+#if PLAYER_VX_MAX > 127
+	#define PVX_INT
+	signed int pvx;
+#else
+	signed char pvx;
+#endif
+#if PLAYER_VY_MAX > 127
+	#define PVY_INT
+	signed int pvy;
+	#ifdef PLAYER_MONONO
+		signed int pvylast;
+	#endif
+#else
+	signed char pvy;
+	#ifdef PLAYER_MONONO
+		signed char pvylast;
+	#endif
+#endif
 
 #ifdef PLAYER_JUMPS
 	unsigned char pj, pctj, pthrust, pjb;
@@ -161,10 +183,9 @@ signed int pvy;
 
 unsigned char pfiring;
 unsigned char phit, pflickering;
-unsigned char pfacing, pgotten, ppossee, pregotten;
+unsigned char pstep, pframe, pfacing, pgotten, ppossee, pregotten;
 unsigned char pfixct;
 unsigned char psprid; 
-signed int pvylast;
 signed char pgtmx, pgtmy;
 unsigned char pcharacter;
 
@@ -215,6 +236,15 @@ unsigned char pstatespradder;
 
 #ifdef ENABLE_TILE_GET
 	unsigned char ptile_get_ctr, optile_get_ctr;
+	#ifdef PERSISTENT_TILE_GET
+		#ifdef SPECCY
+			unsigned char tile_got [MAX_PANTS*12];
+		#endif
+		#ifdef CPC
+			unsigned char tile_got [MAX_PANTS*12] @ (TEXTBUFF + 0x200 - (MAX_PANTS*12));
+		#endif
+		unsigned char tile_got_offset;
+	#endif		
 #endif	
 
 // ----------------------------------------------------------
@@ -339,7 +369,8 @@ unsigned char _en_state, _en_ct;
 		unsigned char ep_killed [MAX_PANTS * N_ENEMS];
 	#endif
 	#ifdef CPC
-		unsigned char *ep_killed = BASE_EP + 4*3*MAX_PANTS;
+		// unsigned char *ep_killed = BASE_EP + 4*3*MAX_PANTS;
+		unsigned char ep_killed [MAX_PANTS * N_ENEMS] @ (BASE_EP + 4*3*MAX_PANTS);
 	#endif
 #endif
 
@@ -467,6 +498,40 @@ unsigned char hitter_x, hitter_y, hitter_frame;
 #endif
 
 // ----------------------------------------------------------
+// Bullets
+// ----------------------------------------------------------
+#ifdef PLAYER_CAN_FIRE
+	unsigned char b_slot, bic, bi;
+	unsigned char _b_x, _b_y;
+	signed char _b_mx, _b_my;
+	#ifdef SPECCY
+		unsigned char b_x [BULLETS_MAX], b_y [BULLETS_MAX];
+		signed char b_mx [BULLETS_MAX], b_my [BULLETS_MAX];
+		unsigned char b_ac [BULLETS_MAX];
+		unsigned char b_slots [BULLETS_MAX];
+	#else
+		#ifdef ENABLE_COCOS
+			#define BULLETS_BASE COCO_BASE + 9*COCOS_MAX;
+		#else
+			#define BULLETS_BASE (BASE_EN + 29*N_ENEMS) + MAX_PANTS
+		#endif
+		unsigned char b_x  [BULLETS_MAX]  @ BULLETS_BASE;
+		unsigned char b_y  [BULLETS_MAX]  @ BULLETS_BASE + BULLETS_MAX;
+		signed char   b_mx [BULLETS_MAX]  @ BULLETS_BASE + 2*BULLETS_MAX;
+		signed char   b_my [BULLETS_MAX]  @ BULLETS_BASE + 3*BULLETS_MAX;
+		unsigned char b_ac [BULLETS_MAX]  @ BULLETS_BASE + 4*BULLETS_MAX;
+		unsigned char b_slots [BULLETS_MAX] @ BULLETS_BASE + 5*BULLETS_MAX;
+	#endif
+#endif
+
+// ----------------------------------------------------------
+// Special features
+// ----------------------------------------------------------
+#ifdef ENABLE_SPRINGS
+	unsigned char springs_on;
+#endif
+
+// ----------------------------------------------------------
 // ISR
 // ----------------------------------------------------------
 #ifdef SPECCY
@@ -474,12 +539,8 @@ unsigned char isrc;
 #endif
 
 #ifdef CPC
-	extern unsigned char isrc [0];
-	extern unsigned char arkc [0];
-	#asm
-		._isrc defb 0
-		._arkc defb 0
-	#endasm
+	unsigned char isrc, isrc_max;
+	unsigned char arkc;
 #endif
 
 // ----------------------------------------------------------
@@ -491,7 +552,6 @@ unsigned char tm_ctr;
 // Scripting
 // ----------------------------------------------------------
 #ifdef SCRIPTING_ON
-	unsigned char flags [MAX_FLAGS] @ 0xCFFF-MAX_FLAGS;
 	unsigned char sc_n, sc_c;
 	const unsigned char *next_script;
 	const unsigned char *script;
@@ -505,15 +565,18 @@ unsigned char tm_ctr;
 		unsigned char down_debounce;
 	#endif
 #endif
+#ifdef SPECCY
+	unsigned char flags [MAX_FLAGS];
+#endif
+#ifdef CPC
+	unsigned char flags [MAX_FLAGS] @ 0xCFFF-MAX_FLAGS;
+#endif
 
 // ----------------------------------------------------------
 // Custom
 // ----------------------------------------------------------
 
-unsigned char ob_char_x, ob_char_y; // Where the character is.
-unsigned char ob_char_id; 
-unsigned char pan;
-unsigned char _obt0, _obt1, _obt2;
-unsigned char *ob_text_pt;
-unsigned char character_order_idx;
-unsigned char character_order [5];
+unsigned char pnude;			// equals 0 or 20
+unsigned char objs_taken [12];	// remember which
+unsigned char objs_taken_i;		// index to that.
+

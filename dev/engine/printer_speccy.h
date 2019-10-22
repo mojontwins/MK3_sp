@@ -1,21 +1,28 @@
-// MT MK3 OM v0.4 [Cheril in Otro Bosque]
-// Copyleft 2017, 2018 by The Mojon Twins
+// MT MK3 OM v0.6 [Cheman]
+// Copyleft 2017, 2019 by The Mojon Twins
 
 // Printer
 
+void p_s (unsigned char *s) {
+	rdxx = _x;  rdyy = _y;
+	while (*s) {
+		rdch = *s ++;
+		if (rdch == '/') { rdxx = _x;  rdyy ++; } else {
+			DRAW_PATTERN (rdxx ++, rdyy, rdc, rdch - 32);
+		}
+	}
+}
+
 void draw_tile (void) {
 	gp_aux = tsmaps + (_t << 3);
-	#ifdef MAP_HEIGHT_12
-		if (_y == SCR_Y + 22) {
-			sp_PrintAtInv (_y    , _x    , *gp_aux ++, *gp_aux ++);
-			sp_PrintAtInv (_y    , _x + 1, *gp_aux ++, *gp_aux );
-		} else if (_y == SCR_Y) {
-			gp_aux += 4;
-			sp_PrintAtInv (_y + 1, _x    , *gp_aux ++, *gp_aux ++);
-			sp_PrintAtInv (_y + 1, _x + 1, *gp_aux ++, *gp_aux );	
-		} else
-	#endif
-	{
+	if (_y == SCR_Y + 22) {
+		sp_PrintAtInv (_y    , _x    , *gp_aux ++, *gp_aux ++);
+		sp_PrintAtInv (_y    , _x + 1, *gp_aux ++, *gp_aux );
+	} else if (_y == SCR_Y) {
+		gp_aux += 4;
+		sp_PrintAtInv (_y + 1, _x    , *gp_aux ++, *gp_aux ++);
+		sp_PrintAtInv (_y + 1, _x + 1, *gp_aux ++, *gp_aux );	
+	} else {
 		sp_PrintAtInv (_y    , _x    , *gp_aux ++, *gp_aux ++);
 		sp_PrintAtInv (_y    , _x + 1, *gp_aux ++, *gp_aux ++);
 		sp_PrintAtInv (_y + 1, _x    , *gp_aux ++, *gp_aux ++);
@@ -121,4 +128,9 @@ void unrle (void) {
 		}
 	}
 	sp_Invalidate (RECT_FULL_SCREEN, RECT_FULL_SCREEN);
+}
+
+void p_t2 (void) {
+	DRAW_PATTERN_UPD (_x ++, _y, _t, DIGIT(_n/10));
+	DRAW_PATTERN_UPD (_x   , _y, _t, DIGIT(_n%10));
 }

@@ -48,6 +48,7 @@ Dim As uByte miniBin (255)
 Dim As Integer miniBinIdx
 Dim As Integer screenOn (255)
 Dim As Integer totalBytes
+Dim As Integer genallcounters
 
 Print "eneexp3b_sp v0.1.20170630 ";
 
@@ -60,6 +61,7 @@ yadjust = Val (sclpGetValue ("yadjust"))
 noHotspots = Val (SclpGetValue ("nohotspots"))
 fileName = formatFileName (sclpGetValue ("out"))
 prefix = sclpGetValue ("prefix")
+genallcounters = (sclpGetValue ("genallcounters")<>"")
 
 ' Outputs 4 bytes per entry
 ' T for type
@@ -106,7 +108,11 @@ For i = 1 To mapPants
 
 		' t == 0 means no enemy defined
 		If t Then
-			enTypeCounters (t And &HF0) = enTypeCounters (t And &HF0) + 1
+			If genallcounters Then
+				enTypeCounters (t) = enTypeCounters (t) + 1
+			Else
+				enTypeCounters (t And &HF0) = enTypeCounters (t And &HF0) + 1
+			End If
 		End If
 
 		mbWrite t

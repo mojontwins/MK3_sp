@@ -72,7 +72,12 @@ Print #fL, ""
 Print #fL, "// librarian"
 Print #fL, ""
 Print #fL, "void librarian_get_resource (unsigned char rn, unsigned char *dst) {"
-Print #fL, "	unpack (library [rn], dst);"
+Print #fL, "	if (rn)"
+Print #fL, "	#ifndef USE_EXOMIZER"
+Print #fL, "		unpack (library [rn], dst);"
+Print #fL, "	#else"
+Print #fL, "		cpc_UnExo ((int *)(library [rn]), (int *)(dst));"
+Print #fL, "	#endif"
 Print #fL, "}"
 Print #fL, ""
 
@@ -83,7 +88,7 @@ Print #fOut, "// library"
 Print #fOut, ""
 
 ' Processing list
-identsIdx = 0
+identsIdx = 1
 Print "Processing " & sclpGetValue ("list") & " ~ ";
 While Not Eof (fIn)
 	Line Input #fIn, linea
@@ -108,7 +113,9 @@ While Not Eof (fIn)
 Wend
 
 Print #fOut, "const unsigned char * library [] = {"
-For i = 0 To identsIdx - 1
+Print #fOut, "	";
+Print #fOut, "0,"
+For i = 1 To identsIdx - 1
 	Print #fOut, "	";
 	Print #fOut, idents (i);
 	If i < identsIdx - 1 Then Print #fOut, ", " Else Print #fOut, ""
@@ -116,7 +123,7 @@ Next i
 Print #fOut, "};"
 Print #fOut, ""
 
-For i = 0 To identsIdx - 1
+For i = 1 To identsIdx - 1
 	Print #fOut, "#define " & UCASE (idents (i)) & " 0x" & Hex (i, 2)
 Next i
 Print #fOut, ""

@@ -18,19 +18,16 @@
 #define RGBA_B( c ) ( CUInt( c )        And 255 )
 #define RGBA_A( c ) ( CUInt( c ) Shr 24         )
 
-Const PLATFORM_NES 		= 0
-Const PLATFORM_SG1000 	= 1
-Const PLATFORM_GB 		= 2
-Const PLATFORM_SMS 		= 3
-
 Dim Shared As Integer silent, flipped, upsideDown, debug
 
-Dim Shared AS uByte mainBin (65535)
+Dim Shared As uByte mainBin (65535)
+Dim Shared As uByte auxBin (65535)
 Dim Shared As String cPool (255)
 Dim Shared As uByte tMaps (255, 255)
 
-Dim Shared As Integer mainIndex, cPoolIndex, tMapsIndex, defaultInk
+Dim Shared As Integer mainIndex, auxIndex, cPoolIndex, tMapsIndex, defaultInk
 Dim Shared As Integer outputPatterns
+Dim Shared As Integer lastWmeta, lasthMeta
 
 Sub fiPuts (s As String)
 	If Not silent Then Puts s
@@ -39,15 +36,21 @@ End Sub
 Sub usage
 	Puts "Usage:"
 	Puts ""
-	Puts "$ mkts_sp.exe in=file.png out=output.bin mode=mode offset=x,y size=w,h"
-	Puts "              metasize=w,h tmapoffs=offset max=n [silent] [defaultink=i]"
+	Puts "$ mkts_sp.exe in=file.png out=output.bin mode=mode [offset=x,y] [size=w,h]"
+	Puts "              [metasize=w,h] [tmapoffs=offset] [max=n] [silent] [defaultink=i]"
 	Puts ""
-	Puts "Supported modes: chars, mapped, sprites"
+	Puts "Supported modes: chars, mapped, sprites, bg, scripted"
+	Puts "In scripted mode, parameter out will be ignored."
 End Sub
 
 Sub mbWrite (v As uByte)
 	mainBin (mainIndex) = v
 	mainIndex = mainIndex + 1
+End Sub
+
+Sub abWrite (v As uByte)
+	auxBin (auxIndex) = v
+	auxIndex = auxIndex + 1
 End Sub
 
 Function speccyColour (c As Integer) As Integer
@@ -84,15 +87,18 @@ Function getAttr (x0 As Integer, y0 As Integer, img As Any Ptr, ByRef c1 As Inte
 		If c2 <> c1 Then Exit For
 	Next y
 
-	' Darker always paper
-	If c1 < c2 Then Swap c1, c2
-
 	' If c2 = c1, complimentary paper
-	If c1 = c2 Then 
-		'If c2 < 3 Then c1 = 7 Else c1 = 0
-		c1 = defaultInk
+	If (c1 And 7) = (c2 And 7) Then 
+		If defaultInk = -1 Then 
+			If (c2 And 7) < 4 Then c1 = 7 Else c1 = 0
+		Else
+			c1 = defaultInk
+		End If
 	End If
-	
+
+	' Darker always paper
+	If (c1 And 7) < (c2 And 7) Then Swap c1, c2
+
 	res = (c1 And 7) Or ((c2 And 7) Shl 3)
 	If isBright (c1) Or isBright (c2) Then res = res Or 64
 
@@ -211,6 +217,9 @@ Sub zxDoTmaps (img As Any Ptr, xc0 As Integer, yc0 As Integer, w As Integer, h A
 	Dim As Integer cTMapIndex
 	Dim As Integer wasNew, pIndex
 
+	lastwMeta = wMeta
+	lasthMeta = hMeta
+
 	x0 = xc0 * 8
 	y0 = yc0 * 8
 	x1 = x0 + w * wMeta * 8 - 1
@@ -302,7 +311,50 @@ Sub zxDoSprites (img As Any Ptr, xc0 As Integer, yc0 As Integer, w As Integer, h
 		Next x
 	Next y
 
-	Puts "- Sprites mode, " & ct & " " & wMetaPixels & "x" & hMetaPixels & " sprite cells with masks extracted (" & (ct * mainIndex) & " bytes)."
+	Puts "- Sprites mode, " & ct & " " & wMetaPixels & "x" & hMetaPixels & " sprite cells with masks extracted (" & (mainIndex) & " bytes)."
+End Sub
+
+Sub zxDoBg (img As Any Ptr, xc0 As Integer, yc0 As Integer, w As Integer, h As Integer)
+	Dim As Integer x, y, x0, y0, x1, y1, i
+	Dim As uByte pattern (7)
+	Dim As uByte attr, pIndex
+	Dim As Integer wasNew, ct
+	Dim As Integer baseIndex, patternTableSize
+
+	x0 = xc0 * 8
+	y0 = yc0 * 8
+	x1 = x0 + w * 8 - 1
+	y1 = y0 + h * 8 - 1
+
+	auxIndex = 0
+	baseIndex = mainIndex: mainIndex = mainIndex + 2
+	ct = 0
+
+	For y = y0 To y1 Step 8
+		For x = x0 To x1 Step 8
+			extractPatternFrom x, y, img, pattern (), attr
+			pIndex = findPatternInPoolAndAdd (patternToString (pattern ()), wasNew)
+			If wasNew Then copyArrayToMainBin pattern (): ct = ct + 1
+		
+			abWrite attr
+			abWrite pIndex
+		Next x
+	Next y
+
+	' Write size to main Binary
+	patternTableSize = mainIndex - baseIndex
+	mainBin (baseIndex) = patternTableSize And &HFF
+	mainBin (baseIndex + 1) = patternTableSize Shr 8
+
+	' Copy nametable to main binary
+	For i = 1 To auxIndex - 1 Step 2
+		mbWrite auxBin (i)
+	Next i
+	For i = 0 To auxIndex - 2 Step 2
+		mbWrite auxBin (i)
+	Next i
+
+	Puts "- BG mode, " & ct & " patterns (" & (8*ct) & " bytes). NT is " & auxIndex & " bytes."
 End Sub
 
 Function writeBin (fOut As Integer, binArray () As uByte, binOffs As Integer, bytes As Integer) As Integer
@@ -331,8 +383,121 @@ Sub writeFullBinary (fileName As String)
 	fiPuts "+ " & bytes & " bytes written"
 End Sub
 
+Sub writeTsmaps (fileName As String)
+	Dim As Integer fOut
+	Dim As Integer bytes
+	Dim As Integer i, j
+	Dim As uByte d
+
+	fiPuts "Opening " & fileName & " for output."
+	Kill fileName
+	fOut = FreeFile
+	Open fileName For Binary As #fOut
+	bytes = 0
+	For i = 0 To tMapsIndex - 1
+		For j = 0 To lastwMeta * lasthMeta * 2 - 1
+			bytes = bytes + 1
+			d = tMaps (i, j): Put #fOut, , d
+		Next j
+	Next i				
+	Close #fOut
+	fiPuts "+ " & bytes & " bytes written"
+End Sub
+
+Sub zxDoScripted (scriptFile As String)
+	Dim As Integer fIn
+	Dim As String lineIn
+	Dim As String tokens (31)
+	Dim As Integer xc0, yc0, w, h, wMeta, hMeta, max, imgOn
+	Dim As Integer wIn, hIn
+	Dim As Any Ptr img
+
+	imgOn = 0
+	fiPuts "Executing script " & scriptFile
+
+	fIn = FreeFile
+	Open scriptFile For Input As #fIn
+	While Not Eof (fIn)
+		Do
+			Line Input #fIn, lineIn
+			lineIn = Trim (lineIn, Any Chr (9) + Chr (32))
+		Loop While Not Eof (fIn) And lineIn = ""
+		parseTokenizeString lineIn, tokens (), ",;" & Chr (9), "#"
+
+		Select Case Lcase (tokens (0))
+			Case "defaultink"
+				defaultInk = Val (tokens (1))
+
+			Case "open"
+				fiPuts "Reading input file " & tokens (1)
+				If imgOn Then ImageDestroy img
+				img = png_load (tokens (1))
+				imgOn = -1
+
+				If ImageInfo (img, wIn, hIn, , , , ) Then
+					fiPuts "There was an error reading input file. Shitty png?": End
+				End If
+
+			Case "output"
+				If tokens (1) = "patterns" Then writeFullBinary tokens (2)
+				If tokens (1) = "tmaps" Then writeTsmaps tokens (2)
+
+			Case "reset"
+				If tokens (1) = "patterns" Then mainIndex = 0
+				If tokens (1) = "tmaps" Then tMapsIndex = 0
+
+			Case "fillto"
+				While mainIndex < Val (tokens (1))
+					mbWrite 0
+				Wend
+
+			Case "spriteset"
+				xc0 = Val (tokens (1))
+				yc0 = Val (tokens (2))
+				w = Val (tokens (3))
+				h = Val (tokens (4))
+				wMeta = Val (tokens (5))
+				hMeta = Val (tokens (6))
+				max = Val (tokens (7)): If max = 0 Then max = -1
+
+				zxDoSprites img, xc0, yc0, w, h, wMeta, hMeta, max
+
+			Case "metatileset"
+				xc0 = Val (tokens (1))
+				yc0 = Val (tokens (2))
+				w = Val (tokens (3))
+				h = Val (tokens (4))
+				wMeta = Val (tokens (5))
+				hMeta = Val (tokens (6))
+				max = Val (tokens (7)): If max = 0 Then max = -1
+				
+				zxDoTmaps img, xc0, yc0, w, h, wMeta, hMeta, max
+
+			Case "charset"
+				xc0 = Val (tokens (1))
+				yc0 = Val (tokens (2))
+				w = Val (tokens (3))
+				h = Val (tokens (4))
+				max = Val (tokens (7)): If max = 0 Then max = -1
+				
+				zxDoChars img, xc0, yc0, w, h, max
+
+			Case "patternoffset"
+				cPoolIndex = Val (tokens (1))
+
+			Case "stats"
+				Puts "stats: " & (mainIndex\8) & " patterns in pool (" & mainIndex & " bytes)"
+
+		End Select
+	Wend
+
+	If imgOn Then ImageDestroy img
+				
+End Sub
+
 Dim As String mandatory (2) => { "in", "out", "mode" }
-Dim As Integer xc0, yc0, w, h, wMeta, hMeta, tMapOffs, max, i, j
+Dim As String mandatoryScripted (1) => { "in", "mode" }
+Dim As Integer xc0, yc0, w, h, wMeta, hMeta, max, i, j
 Dim As Integer coords (9)
 Dim As Integer wIn, hIn
 Dim As String outputBaseFn, fileName
@@ -353,16 +518,22 @@ debug = (sclpGetValue ("debug") <> "")
 fiPuts "mkts_sp v0.1.20170629"
 
 ' Mandatory params
-If Not sclpCheck (mandatory ()) Then usage: End
+If sclpGetValue ("mode") = "scripted" Then
+	If Not sclpCheck (mandatoryScripted ()) Then usage: End
+Else
+	If Not sclpCheck (mandatory ()) Then usage: End
+End If
 
 ' We need to read the input image at this point
 screenres 640, 480, 32, , -1
 
-fiPuts "Reading input file " & sclpGetValue ("in")
-img = png_load (sclpGetValue ("in"))
+If sclpGetValue ("mode") <> "scripted" Then
+	fiPuts "Reading input file " & sclpGetValue ("in")
+	img = png_load (sclpGetValue ("in"))
 
-If ImageInfo (img, wIn, hIn, , , , ) Then
-	fiPuts "There was an error reading input file. Shitty png?": End
+	If ImageInfo (img, wIn, hIn, , , , ) Then
+		fiPuts "There was an error reading input file. Shitty png?": End
+	End If
 End If
 
 ' offset
@@ -403,7 +574,7 @@ max = Val (sclpGetValue ("max")): If max < 1 Then max = -1	' Which means no limi
 If sclpGetValue ("defaultink") <> "" Then 
 	defaultInk = Val (sclpGetValue ("defaultink"))
 Else
-	defaultInk = 7
+	defaultInk = -1
 End If
 
 ' Fix output
@@ -416,31 +587,28 @@ Select Case sclpGetValue ("mode")
 	Case "chars"
 		zxDoChars img, xc0, yc0, w, h, max
 		writeFullBinary outputBaseFn & ".bin"
+		ImageDestroy img
 
 	Case "mapped"
 		zxDoTmaps img, xc0, yc0, w, h, wMeta, hMeta, max
 		writeFullBinary outputBaseFn & ".patterns.bin"
-
-		' Write metatiles
-		fileName = outputBaseFn & ".tilemaps.bin"
-		fiPuts "Opening " & fileName & " for output."
-		Kill fileName
-		fOut = FreeFile
-		Open fileName For Binary As #fOut
-		bytes = 0
-		For i = 0 To tMapsIndex - 1
-			For j = 0 To wMeta * hMeta * 2 - 1
-				bytes = bytes + 1
-				d = tMaps (i, j): Put #fOut, , d
-			Next j
-		Next i				
-		Close #fOut
-		fiPuts "+ " & bytes & " bytes written"
+		writeTsmaps outputBaseFn & ".tilemaps.bin" 
+		ImageDestroy img
 
 	Case "sprites"
 		zxDoSprites img, xc0, yc0, w, h, wMeta, hMeta, max
 		writeFullBinary outputBaseFn & ".bin"
-End Select
+		ImageDestroy img
 
+	Case "bg"
+		zxDoBg img, xc0, yc0, w, h
+		writeFullBinary outputBaseFn & ".bin"
+		ImageDestroy img
+
+	Case "scripted"
+		zxDoScripted sclpGetValue ("in")
+
+End Select
+				
 fiPuts "DONE"
 

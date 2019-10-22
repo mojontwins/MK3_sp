@@ -631,7 +631,7 @@ Sub cpcDoSprites (img As Any Ptr, xc0 As Integer, yc0 As Integer, w As Integer, 
 	wMetaPixels = wMeta * patternWidthInPixels
 	hMetaPixels = hMeta * 8
 	x1 = x0 + w * wMetaPixels - 1
-	y1 = x0 + h * hMetaPixels - 1
+	y1 = y0 + h * hMetaPixels - 1
 	ct = 0
 
 	For y = y0 To y1 Step hMetaPixels

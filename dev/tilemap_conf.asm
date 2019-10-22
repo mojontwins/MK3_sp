@@ -1,5 +1,5 @@
-; MT MK3 ZX v0.1 [Ninjajar_M]
-; Copyleft 2017 by The Mojon Twins
+; MT MK3 OM v0.6 [Cheman]
+; Copyleft 2017, 2019 by The Mojon Twins
 
 ; Tilemap configuration for CPCRSLIB.
 ; This tilemaps is defined over the whole screen
@@ -7,12 +7,13 @@
 
 	XLIB TileMapConf
 	
-	XDEF _ts
+	XREF _ts
 	XDEF _nametable
 
-	XDEF tiles
+	XREF tiles
 	XDEF pantalla_juego
 	XDEF tiles_tocados
+	XDEF tiles_tocados_ptr
 	XDEF posiciones_pantalla
 	XDEF posiciones_super_buffer
 	
@@ -48,8 +49,8 @@
 	; 14:
 	; 15: $55, $AA
 	
-	defc mascara1 = $55;
-	defc mascara2 = $AA;
+	defc mascara1 = $00;
+	defc mascara2 = $00;
 	
 ; VALORES QUE DEFINEN EL BUFFER Y LA PANTALLA
 
@@ -137,6 +138,5 @@
 .tiles_tocados 
 	defs 256
 
-._ts
-.tiles
-	BINARY "../ports/cpc/bin/ts.bin"
+.tiles_tocados_ptr
+	defw tiles_tocados

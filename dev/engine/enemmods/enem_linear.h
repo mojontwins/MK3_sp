@@ -1,5 +1,5 @@
-// MT MK3 OM v0.4 [Cheril in Otro Bosque]
-// Copyleft 2017, 2018 by The Mojon Twins
+// MT MK3 OM v0.6 [Cheman]
+// Copyleft 2017, 2019 by The Mojon Twins
 
 // Enem. type linear
 
@@ -19,13 +19,12 @@
 				cx1 = cx2 = (_en_x + 15) >> 4;
 			}
 			cm_two_points ();
-#ifdef LINEAR_COLLIDE_EVERYTHING
-			if (at1 + at2)
-#else
-			if ((at1 & OBSTACLE_BIT) || (at2 & OBSTACLE_BIT))
-#endif
+	#ifdef LINEAR_COLLIDE_EVERYTHING
+				if (at1 + at2)
+	#else
+				if ((at1 & OBSTACLE_BIT) || (at2 & OBSTACLE_BIT))
+	#endif
 			{
-				en_collx = 1;
 				_en_x = rdx;
 				_en_mx = -_en_mx;
 			}
@@ -53,7 +52,6 @@
 			if ((at1 & OBSTACLE_BIT) || (at2 & OBSTACLE_BIT))
 #endif
 			{
-				en_colly = 1;
 				_en_y = rdy;
 				_en_my = -_en_my;
 			}				
@@ -72,5 +70,10 @@
 	}
 
 	if (_en_mx) rda = (_en_x >> 3); else if (_en_my) rda = (_en_y >> 3); else rda = (frame_counter >> 3);
-	if (spr_id == 0xff) spr_id = en_s [gpit] + (rda & 1);
+	if (spr_id == 0xff) {
+		spr_id = en_s [gpit] + (rda & 1);
+		#ifdef ENEMS_WITH_FACING
+			spr_id += (_en_mx ? ((_en_mx > 0) ? 0 : 2) : ((_en_my > 0) ? 0 : 2));
+		#endif
+	}
 	

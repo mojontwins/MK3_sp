@@ -1,16 +1,15 @@
-// MT MK3 OM v0.4 [Cheril in Otro Bosque]
-// Copyleft 2017, 2018 by The Mojon Twins
+// MT MK3 OM v0.6 [Cheman]
+// Copyleft 2017, 2019 by The Mojon Twins
 
 // main.h - You see flags
 
 void main (void) {
 	system_init ();
-	sprite_cells_init ();
-	
+
 	while (1) {
 		game_title (); 			// Set option in gpit!
 
-		level = 0;
+		level = olevel = 0;
 #ifdef HOTSPOT_TYPE_STAR		
 		pstars = 0;
 #endif	
@@ -20,19 +19,21 @@ void main (void) {
 #endif		
 
 		while (1) {
+			game_level ();
 			level_setup ();
 			game_init ();
-			game_loop ();
+			game_loop ();			
 
 			if (pkilled) {
 				game_over ();
 				break;
 			} else {
-				/*if (level < 3)
+				if (level < 2) {
 					level ++;
-				else*/ 
-				game_ending ();
-				break;
+				} else {
+					game_ending ();
+					break;
+				}
 			}
 		}
 	}

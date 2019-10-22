@@ -1,126 +1,352 @@
-// MT MK3 OM v0.4 [Cheril in Otro Bosque]
-// Copyleft 2017, 2018 by The Mojon Twins
+// MT MK3 OM v0.6 [Cheman]
+// Copyleft 2017, 2019 by The Mojon Twins
 
 // Hotspots
 
 void hotspots_ini (void) {
-	#ifdef HOTSPOTS_MAY_CHANGE
-		gp_gen = (unsigned char *) (hotspots);
-		for (gpit = 0; gpit < MAX_PANTS; ++gpit) {
-			ht [gpit] = *gp_gen ++; gp_gen ++;
-			hact [gpit] = 1;
-		}
-	#else
-		gpit = MAX_PANTS; while (gpit --) hact [gpit] = 1;
-	#endif
+	#asm
+		#ifdef HOTSPOTS_MAY_CHANGE
+			ld  hl, _hotspots
+			ld  b, 0
+			ld  d, 0
+		._hotspots_ini_loop
+			ld  a, (hl)
+			inc hl
+			inc hl
+			push hl
+
+			ld  e, b
+			ld  hl, _ht
+			add hl, de
+			ld  (hl), a
+
+			ld  hl, _hact
+			ld  a, 1
+			add hl, de
+			ld  (hl), a
+
+			pop hl
+
+			inc b
+			ld  a, b
+			or  a
+			cp  3
+			jr  nz, _hotspots_ini_loop
+		#else
+			ld  hl, _hact
+			ld  a, 1
+			ld  b, MAX_PANTS
+		._hotspots_ini_loop
+			ld  (hl), a
+			inc hl
+			djnz _hotspots_ini_loop			
+		#endif
+	#endasm
 }
 
 void hotspots_paint (void) {
-	if (hrt) {
-		_y = SCR_Y + (hry >> 3) - 2;
-		_x = SCR_X + (hrx >> 3);
+	#asm
+			ld  a, (_hrt)
+			or  a
+			ret z
+
 		#ifdef HOTSPOT_SIMPLE_SIGNS
-			_t = HOTSPOTS_BASE_TILE + (hrt & 0xf);
-		#else			
-			_t = HOTSPOTS_BASE_TILE + hrt;
-		#endif			
-		DRAW_TILE_UPD ();
-	}
+			and 0xf
+		#endif
+			add HOTSPOTS_BASE_TILE
+			ld  (__t), a
+
+			ld  a, (_hry)
+			srl a
+			srl a
+			srl a
+			sub 2
+			add SCR_Y
+			ld  (__y), a
+
+			ld  a, (_hrx)
+			srl a
+			srl a
+			srl a
+			add SCR_X
+			ld  (__x), a
+	#endasm
+
+	DRAW_TILE_UPD ();
 }
 
 void hotspots_load (void) {
-	if (hact [n_pant]) {
-		#ifdef HOTSPOTS_MAY_CHANGE
-			rda = hotspots [1 + (n_pant << 1)];
-			hrt = ht [n_pant];
-		#else
-			gp_gen = (unsigned char *) (hotspots + (n_pant << 1));
-			hrt = *gp_gen ++; rda = *gp_gen;
-		#endif
-		hry = rda & 0xf0; hrx = rda << 4;
+	#asm
+			ld  de, (_n_pant)
+			ld  d, 0
+			ld  hl, _hact
+			add hl, de
+			ld  a, (hl)
+			or  a
+			jp  z, _hotspots_load_reset
 
-		hotspots_paint ();
-	} else hrt = 0;
+		#ifdef HOTSPOTS_MAY_CHANGE
+			ld  de, (_n_pant)
+			ld  d, 0
+			ld  hl, _hrt
+			add hl, de
+			ld  a, (hl)
+
+			ld  (_hrt), a
+			ld  a, (_n_pant)
+			sla a 
+			inc a
+			ld  e, a
+			ld  d, 0
+			ld  hl, _hotspots
+			add hl, de
+			ld  a, (hl)
+			
+		#else
+			ld  a, (_n_pant)
+			sla a
+			ld  e, a
+			ld  d, 0
+			ld  hl, _hotspots
+			add hl, de
+			ld  a, (hl)
+			inc hl
+			ld  (_hrt), a
+			ld  a, (hl)
+			
+		#endif
+
+			ld  c, a
+			and 0xf0
+			ld  (_hry), a
+			ld  a, c
+			sla a
+			sla a
+			sla a
+			sla a
+			ld  (_hrx), a
+
+			jp _hotspots_paint 
+
+		._hotspots_load_reset
+			xor a
+			ld  (_hrt), a
+			ret
+	#endasm
 }
 
 void hotspots_do (void) {
+	#asm
+			ld  a, (_hrt)
+			or  a
+			ret z 
 
-	if (hrt) {
-		if (collide (prx, pry, hrx, hry)) {
-			#ifdef HOTSPOTS_LOGIC_MORE_COMPLEX
-				rda = 1;
+			// Check collision
+			ld  a, (_prx)
+			ld  (_cx1), a
+			ld  a, (_pry)
+			ld  (_cy1), a
+			ld  a, (_hrx)
+			ld  (_cx2), a
+			ld  a, (_hry)
+			ld  (_cy2), a
+			call _collide  ; -> L
+
+			xor a
+			or  l
+			ret z
+
+		#ifdef HOTSPOTS_LOGIC_MORE_COMPLEX
+			ld  a, 1
+			ld  (_rda), a
+		#endif
+
+			ld  a, (_hrt)
+		#ifdef HOTSPOT_SIMPLE_SIGNS
+			and 0xf
+		#endif
+
+		._hotspots_do_selector
+		#ifdef HOTSPOT_TYPE_REFILL
+			cp  HOTSPOT_TYPE_REFILL
+			jp  z, _hotspots_do_type_refill
+		#endif
+
+		#ifdef HOTSPOT_TYPE_OBJECT
+			cp  HOTSPOT_TYPE_OBJECT
+			jp  z, _hotspots_do_type_object
+		#endif
+
+		#ifdef HOTSPOT_TYPE_KEY
+			cp  HOTSPOT_TYPE_KEY
+			jp  z, _hotspots_do_type_key
+		#endif
+
+		#ifdef HOTSPOT_TYPE_AMMO
+			cp  HOTSPOT_TYPE_AMMO
+			jp  z, _hotspots_do_type_ammo
+		#endif
+
+		#ifdef HOTSPOT_SIMPLE_SIGNS
+			cp  HOTSPOT_SIMPLE_SIGNS
+			jp  z, _hotspots_do_simple_signs
+		#endif
+
+		#ifdef HOTSPOT_TYPE_CLOTHES
+			cp HOTSPOT_TYPE_CLOTHES
+			jp  z, _hotspots_do_clothes
+		#endif
+
+			jp  _hotspots_do_selector_done
+
+		#ifdef HOTSPOT_TYPE_REFILL
+		._hotspots_do_type_refill
+			ld  a, (_plife)
+			add LIFE_REFILL
+			cp  99
+			jp  c, _hotspots_do_type_refill_done
+			ld  a, 99
+		._hotspots_do_type_refill_done
+			ld  (_plife), a
+
+			jp _hotspots_do_selector_done
+		#endif
+
+		#ifdef HOTSPOT_TYPE_OBJECT
+		._hotspots_do_type_object
+			#ifdef ONLY_ONE_OBJECT_FLAG
+				ld  a, (_flags + ONLY_ONE_OBJECT_FLAG)
+				or  a
+				jp  z, _hotspots_do_type_object_not_set
+				xor a
+				ld  (_rda), a
+				jr _hotspots_do_type_object_one_done				
+			._hotspots_do_type_object_not_set
+				ld  a, 1
+				ld  (_flags + ONLY_ONE_OBJECT_FLAG), a
+			._hotspots_do_type_object_one_done
+			#else
+				ld  a, (_pobjs)
+				inc a
+				ld  (_pobjs), a
 			#endif
 
-			#ifdef HOTSPOT_SIMPLE_SIGNS
-				switch (hrt & 0xf)
-					case HOTSPOT_SIMPLE_SIGNS:
-						if (CONTROLLER_DOWN (pad)) {
-							rdt = hrt >> 4;
-							text_window ();
-						}
-						rda = 0;
-						break;
-			#else			
-				switch (hrt)
-			#endif
-			{
+			jp _hotspots_do_selector_done
+		#endif
 
-			#ifdef HOTSPOT_TYPE_REFILL
-				case HOTSPOT_TYPE_REFILL:
-					plife += LIFE_REFILL; if (plife > 99) plife = 99;
-					break;
+		#ifdef HOTSPOT_TYPE_KEY
+		._hotspots_do_type_key
+			ld  a, (_pkeys)
+			inc a
+			ld  (_pkeys), a
+
+			jp _hotspots_do_selector_done
+		#endif
+
+		#ifdef HOTSPOT_TYPE_AMMO
+		._hotspots_do_type_ammo
+			ld  a, (_pammo)
+			ld  c, a
+			ld  a, AMMO_MAX
+			sub c
+			ld  c, AMMO_REFILL
+			cp  c
+			jr  c, _hotspots_to_type_ammo_maximize
+			ld  a, (_pammo)
+			add AMMO_REFILL
+			jr _hotspots_to_type_ammo_done
+		.__hotspots_to_type_ammo_maximize
+			ld  a, AMMO_MAX			
+
+		._hotspots_to_type_ammo_done	
+			ld (_pammo), a
+
+			jp _hotspots_do_selector_done
+		#endif
+
+		#ifdef HOTSPOT_SIMPLE_SIGNS
+		._hotspots_do_simple_signs
+			// TODO
+			#endasm
+				if (CONTROLLER_DOWN (pad)) {
+					rdt = hrt >> 4;
+					text_window ();
+				}
+				rda = 0;
+			#asm
+
+			jp _hotspots_do_selector_done
+		#endif
+
+		#ifdef HOTSPOT_TYPE_CLOTHES
+		._hotspots_do_clothes
+			xor a
+			ld  (_pnude), a
+
+			#ifdef PLAYER_FLICKERS
+				ld  a, PLAYER_FLICKERS
+				ld  (_pflickering), a
 			#endif
 
-			#ifdef HOTSPOT_TYPE_OBJECT
-				case HOTSPOT_TYPE_OBJECT:
-					#ifdef ONLY_ONE_OBJECT_FLAG
-						if (flags [ONLY_ONE_OBJECT_FLAG]) {
-							rda = 0;
-						} else {
-							flags [ONLY_ONE_OBJECT_FLAG] = 1;
-						}
-					#else				
-						pobjs ++;
-					#endif
-					break;
-			#endif
+			jp _hotspots_do_selector_done
+		#endif
 
-			#ifdef HOTSPOT_TYPE_KEY
-				case HOTSPOT_TYPE_KEY:
-					pkeys ++;
-					break;
-			#endif
+		._hotspots_do_selector_done
 
-			#ifdef HOTSPOT_TYPE_AMMO
-				case HOTSPOT_TYPE_AMMO:
-					if (AMMO_MAX - pammo < AMMO_REFILL) pammo = AMMO_MAX; else pammo += AMMO_REFILL;
-					break;
-			#endif
+		#ifdef HOTSPOTS_LOGIC_MORE_COMPLEX
+			ld  a, (_rda)
+			or  a
+			ret z
+		#endif
 
-			#ifdef HOTSPOT_TYPE_STAR
-				case HOTSPOT_TYPE_STAR:
-					pstars ++;
-					break;
-			#endif
-			}
-			
-			#ifdef HOTSPOTS_LOGIC_MORE_COMPLEX
-				if (rda)
-			#endif
-			{
-				SFX_PLAY (SFX_ITEM);
-				
-				// Delete hotspot
-				_y = (hry >> 4) - 1; _x = hrx >> 4; 
-				#ifdef HOTSPOTS_RESTORE_WITH_MAP_DATA				
-					_t = scr_buff [(_y << 4) | _x];
-				#else
-					_t = 0;
-				#endif
-				set_map_tile ();
+		#endasm
+			SFX_PLAY (SFX_ITEM);
+		#asm
 
-				hact [n_pant] = hrt = 0;
-			}
-		}
-	}
+			// Delete hotspot
+
+			ld  a, (_hry)
+			srl a
+			srl a
+			srl a
+			srl a
+			dec a
+			ld  (__y), a
+
+			ld  a, (_hrx)
+			srl a
+			srl a
+			srl a
+			srl a
+			ld  (__x), a
+
+		#ifdef HOTSPOTS_RESTORE_WITH_MAP_DATA
+			ld  a, (_hry)
+			and 0xf0
+			sub 0x10
+			ld  c, a
+			ld  a, (__x)
+			or  c
+			ld  e, a
+			ld  d, 0
+			ld  hl, _scr_buff
+			add hl, de
+			ld  a, (hl)
+		#else
+			xor a
+		#endif
+
+			ld  (__t), a
+
+			call _set_map_tile ();
+
+			ld  de, (_n_pant)
+			ld  d, 0
+			ld  hl, _hact
+			add hl, de
+			xor a
+			ld  (hl), a
+			ld  (_hrt), a
+	#endasm
+
 }

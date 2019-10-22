@@ -1,7 +1,5 @@
-// MT MK3 OM v0.4 [Cheril in Otro Bosque]
-// Copyleft 2017, 2018 by The Mojon Twins
-
-	// All hail the monococo!
+// MT MK3 OM v0.6 [Cheman]
+// Copyleft 2017, 2019 by The Mojon Twins
 
 	//sfx_play (SFX_BUTT_HIT, SC_LEVEL);
 	rdt = en_t [gpit] = 0;

@@ -1,17 +1,7 @@
-// MT MK3 OM v0.4 [Cheril in Otro Bosque]
-// Copyleft 2017, 2018 by The Mojon Twins
+// MT MK3 OM v0.6 [Cheman]
+// Copyleft 2017, 2019 by The Mojon Twins
 
 // Printer
-
-void p_s (unsigned char *s) {
-	rdxx = _x;  rdyy = _y;
-	while (*s) {
-		rdch = *s ++;
-		if (rdch == '/') { rdxx = _x;  rdyy ++; } else {
-			DRAW_PATTERN (rdxx ++, rdyy, rdc, rdch - 32);
-		}
-	}
-}
 
 #ifdef SPECCY
 	#include "engine/printer_speccy.h"
@@ -25,40 +15,82 @@ void p_s (unsigned char *s) {
 #endif
 
 void set_map_tile (void) {
-	rdf = (_y << 4) | _x;
-	scr_buff [rdf] = _t; scr_attr [rdf] = behs [_t];
-	_x = SCR_X + (_x << 1); _y = SCR_Y + (_y << 1);
+	#asm
+		ld  a, (__y)
+		sla a
+		sla a
+		sla a
+		sla a
+		ld  c, a
+		ld  a, (__x)
+		or  c
+		ld  (_rdf), a
+
+		ld  de, (__t)
+		ld  d, 0
+		ld  hl, _behs
+		add hl, de
+		ld  a, (hl)
+
+		ld  de, (_rdf)
+		ld  d, 0
+		ld  hl, _scr_attr
+		add hl, de
+		ld  (hl), a
+
+		ld  a, (__t)
+		ld  hl, _scr_buff
+		add hl, de
+		ld  (hl), a
+
+		ld  a, (__x)
+		sla a
+		add SCR_X
+		ld  (__x), a
+
+		ld  a, (__y)
+		sla a
+		add SCR_Y
+		ld (__y), a
+	#endasm
+
 	DRAW_TILE_UPD ();
 }
 
 void draw_tile_advance (void) {
-	DRAW_TILE (); 
-	_x += 2; 
-	if (_x == MAP_CHARSW + SCR_X) { 
-		_x = SCR_X; 
-		_y += 2; 
-		#ifndef MAP_WIDTH_16		
-			gpit ++;
-		#endif
-	}
+	DRAW_TILE ();
+	#asm
+		ld  a, (_flip_flop)
+		xor 1
+		ld  (_flip_flop), a
+		ld  a, (__x)
+		add 2
+		cp  MAP_CHARSW+SCR_X
+		jr  nz, _draw_tile_advance_no_next_line
+		ld  a, (__y)
+		add 2
+		ld  (__y), a
+		srl a
+		and 1
+		ld  (_flip_flop), a
+		ld  a, SCR_X
+
+	._draw_tile_advance_no_next_line
+		ld  (__x), a
+	#endasm
 }
 
+/*
 const unsigned char alt_tile [] = {
 	16, 1, 4, 8, 4, 21, 6, 7, 8, 9, 10, 20, 12, 13, 14, 15
 };
-
+*/
 void advance_worm (void) {
 	_t = rdt;
 
-	// CUSTOM {
-		if (rand8() & 1) {
-			_t = alt_tile [_t];
-		}
-	// } END_OF_CUSTOM
-
-	#ifdef MAP_USE_ALT_TILE
-		if (_t == 0 && ALT_TILE_EXPRESSION) _t = MAP_USE_ALT_TILE;
-	#endif
+	// CUSTOM { Does not apply for this game
+	if (level == 1 && _t == 11 && flip_flop) _t = 0;
+	// } END_OF_CUSTOM;
 
 	rda = behs [_t];
 	#ifdef FLOATY_PUSH_BOXES
@@ -97,13 +129,51 @@ void draw_scr (void) {
 	#endif
 
 	#ifdef MAP_FORMAT_RLE53	
-		gpit = 0; _x = SCR_X; _y = SCR_Y;
-		while (gpit < SCR_BUFFER_SIZE) {
-			rdt = *gp_map ++;
-			rdct = 1 + (rdt >> 5);
-			rdt &= 0x1f;
-			while (rdct --) advance_worm ();
-		}
+		#asm
+		._draw_scr_rle53
+			xor a
+			ld  (_gpit), a
+			ld  a, SCR_X
+			ld  (__x), a
+			ld  a, SCR_Y
+			ld  (__y), a
+
+		._draw_scr_loop
+			ld  a, (_gpit)
+			cp  SCR_BUFFER_SIZE
+			;jr  nc, _draw_scr_loop_done
+			jr  z, _draw_scr_loop_done
+
+			ld  hl, (_gp_map)
+			ld  a, (hl)
+			inc hl
+			ld  (_gp_map), hl
+			
+			ld  c, a
+			and 0x1f
+			ld  (_rdt), a
+
+			ld  a, c
+			ld  (_rdct), a
+
+		._draw_scr_advance_loop
+			ld  a, (_rdct)
+			cp  32
+			jr  c, _draw_scr_advance_loop_done
+			sub 32
+			ld  (_rdct), a
+
+			call _advance_worm
+					
+			jr _draw_scr_advance_loop
+
+		._draw_scr_advance_loop_done
+			call _advance_worm
+
+			jr _draw_scr_loop
+
+		._draw_scr_loop_done
+		#endasm
 	#endif
 
 	#ifdef MAP_FORMAT_PACKED
@@ -115,43 +185,19 @@ void draw_scr (void) {
 		}
 	#endif
 
-	// CUSTOM {
-
-		// Draw a character
-		#ifdef SPECCY
-			ob_char_y = 0; gpit = 6; while (gpit --) if (ob_char_n_pants [gpit] == n_pant) {
-				rda = ob_char_yx [gpit];
-				_t = 32 + (gpit << 1);
-				rdx = rda & 0xf; rdy = (rda >> 4) - 1;
-				ob_char_x = rdx << 4;
-				ob_char_y = (rda & 0xf0) + 24;
-				_x = rdx; _y = rdy;     set_map_tile (); 
-				_t ++;
-				_x = rdx; _y = rdy + 1; set_map_tile (); 
-				ob_char_id = gpit;
-				break;
+	#ifdef PERSISTENT_TILE_GET
+		_t = TILE_GET_CLEAR_TILE; gpjt = 0;
+		gpit = tile_got_offset = (n_pant << 3) + (n_pant << 2);
+		for (_y = SCR_Y; _y < 24 + SCR_Y; _y += 2) {
+			for (_x = 0; _x < 32; ) {
+				if (tile_got [gpit] & bitmask [_x >> 2]) {
+					DRAW_TILE (); _x += 2; scr_attr [gpjt] = 0; ++ gpjt;
+					DRAW_TILE (); _x += 2; scr_attr [gpjt] = 0; ++ gpjt;
+				} else { _x += 4; gpjt += 2; }				
 			}
-		#endif
-
-		#ifdef CPC
-			spr_on [SPR_CHARACTER] = 0;
-			ob_char_y = 0; gpit = 6; while (gpit --) if (ob_char_n_pants [gpit] == n_pant) {
-				rda = ob_char_yx [gpit];
-				_t = 32 + (gpit << 1);
-				rdx = rda & 0xf; rdy = (rda >> 4) - 1;
-				ob_char_x = rdx << 4;
-				ob_char_y = (rda & 0xf0) + 24;
-				rdy ++; scr_attr [(rdy << 4) | rdx] = 8; 	// Non walkable 
-				spr_on [SPR_CHARACTER] = 1;
-				spr_x [SPR_CHARACTER] = ob_char_x;
-				spr_y [SPR_CHARACTER] = ob_char_y - 8;
-				spr_next [SPR_CHARACTER] = sprite_cells [13 + gpit];
-				ob_char_id = gpit;
-				break;
-			}
-		#endif
-
-	// } END_OF_CUSTOM
+			++ gpit;
+		}
+	#endif
 }
 
 void draw_scr_buffer (void) {
@@ -173,10 +219,6 @@ void draw_scr_buffer (void) {
 	#endif	
 }
 
-void p_t2 (void) {
-	DRAW_PATTERN_UPD (_x ++, _y, _t, DIGIT(_n/10));
-	DRAW_PATTERN_UPD (_x   , _y, _t, DIGIT(_n%10));
-}
 
 #ifdef DEBUG
 	unsigned char hexd (unsigned char n) {

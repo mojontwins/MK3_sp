@@ -7,11 +7,20 @@
 	di
 	db	$de, $c0, $37, $0e, $8f, $39, $96 ;OVER USR 7 ($5ccb)
 	
-; screen 0
-	ld	hl, $5800
-	ld	de, $5801
-	ld	(hl), l
-	ldir
+	call blackout
+
+; load screen
+	scf
+	ld	a, $ff
+	ld	ix, %%%preloadingcompstart%%%
+	ld	de, %%%preloadingcomplength%%%
+	call $0556
+	di
+
+; Decompress
+	ld  hl, %%%preloadingcompstart%%%
+	ld  de, 16384
+	call depack	
 
 ; load screen
 	scf
@@ -19,6 +28,9 @@
 	ld	ix, %%%loadingcompstart%%%
 	ld	de, %%%loadingcomplength%%%
 	call $0556
+	di
+
+	call blackout
 
 ; Decompress
 	ld  hl, %%%loadingcompstart%%%
@@ -31,16 +43,15 @@
 	ld	ix, %%%mainbincompstart%%%
 	ld	de, %%%mainbincomplength%%%
 	call $0556
+	di
 
 ; Decompress
 	ld  hl, %%%mainbincompstart%%%
-	ld  de, 24000
-	call depack
-
-	ei
+	ld  de, 24050
+	call depack	
 	
 ; run game!
-	jp 24000
+	jp 24050
 	
 ; aPPack decompressor
 ; original source by dwedit
@@ -158,4 +169,13 @@ ap_getgammaloop:	call 	ap_getbit
 		rl 	b
 		call 	ap_getbit
 		jr 	c,ap_getgammaloop
+		ret
+
+blackout:
+	; screen 0
+		ld  bc, 767
+		ld	hl, $5800
+		ld	de, $5801
+		ld	(hl), l
+		ldir
 		ret

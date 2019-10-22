@@ -1,5 +1,5 @@
-// MT MK3 OM v0.4 [Cheril in Otro Bosque]
-// Copyleft 2017, 2018 by The Mojon Twins
+// MT MK3 OM v0.6 [Cheman]
+// Copyleft 2017, 2019 by The Mojon Twins
 
 	// Change screen
 	// Very basic. Extend when needed.
@@ -33,4 +33,8 @@ if (on_pant != n_pant && do_game) {
 	prx = px >> FIX_BITS; pry = py >> FIX_BITS;
 	game_prepare_screen ();
 	on_pant = n_pant;
+	isrc = 0;
+	#ifdef CPC
+		isrc_max = 0;
+	#endif
 } 

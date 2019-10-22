@@ -1,5 +1,5 @@
-// MT MK3 OM v0.4 [Cheril in Otro Bosque]
-// Copyleft 2017, 2018 by The Mojon Twins
+// MT MK3 OM v0.6 [Cheman]
+// Copyleft 2017, 2019 by The Mojon Twins
 
 	// en_mx [gpit] -> time between shots.
 	// en_my [gpit] -> direction, where to shoot at.

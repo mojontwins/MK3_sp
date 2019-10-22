@@ -1,5 +1,5 @@
-// MT MK3 OM v0.4 [Cheril in Otro Bosque]
-// Copyleft 2017, 2018 by The Mojon Twins
+// MT MK3 OM v0.6 [Cheman]
+// Copyleft 2017, 2019 by The Mojon Twins
 
 // Reserves static space for everything.
 
@@ -8,10 +8,11 @@
 #define MAX_MAP_SIZE            2048
 #define MAX_DECOS_SIZE          256
 #define MAX_LOCKS_SIZE          16
-#define MAX_ENEMS_SIZE          184 //256
+#define MAX_ENEMS_SIZE          MAX_PANTS*12
 
 // Tileset
 extern const unsigned char ts [0];
+extern const unsigned char ts0 [0];
 extern const unsigned char tsmaps [0];
 extern const unsigned char behs [0];
 
@@ -20,6 +21,9 @@ extern const unsigned char ss [0];
 extern const unsigned char ss_main [0];
 extern const unsigned char ss_enems [0];
 extern const unsigned char ss_extra [0];
+// CUSTOM {
+	extern const unsigned char ss_pumpkin [0];
+// } END_OF_CUSTOM
 extern const unsigned char ss_small [0];
 #ifdef CPC
 	extern const unsigned char ss_empty [0];
@@ -42,6 +46,7 @@ extern const unsigned char hotspots [0];
 
 // Custom fixed screens
 extern const unsigned char title_rle [0];
+extern const unsigned char hud_rle [0];
 extern const unsigned char ending_rle [0];
 
 #asm
@@ -50,36 +55,37 @@ extern const unsigned char ending_rle [0];
 	#ifdef SPECCY
 		._ts
 			; First, the main font. Must be 64 chars (512 bytes) long.
-			; BINARY "../bin/font.bin"
-			; Then, space for the remaining 192 characters (1536 bytes).
-			; defs 1536
-			; In this game, theres only one level and one ts
-			BINARY "../ports/zx/bin/ts.bin" ; 2048 bytes
+			BINARY "../ports/zx/bin/ts.bin"
+		._ts0
+			; Then, space for the remaining 88 characters (704 bytes).
+			defs 704			
+		._tslevel
+
 	#endif
 	#ifdef CPC 
-			; _ts and tiles are defined and XREFd in tilemap_conf.asm	
+			XDEF _ts
+			XDEF tiles
+		._ts
+		.tiles
+			BINARY "../ports/cpc/bin/ts.bin"	; 64 patterns (512 bytes)
+		._ts0
+			defs 1536 							; space for 96 patterns (1536 bytes)
 	#endif		
 	
 	._tsmaps
 		; Space to define up to 48 metatiles (384 bytes).
-		; defs 384
-		; In this game, there is only one level.
-		#ifdef SPECCY
-			BINARY "../ports/zx/bin/ts.tilemaps.bin" ; 384 bytes
-		#endif
-		#ifdef CPC
-			BINARY "../ports/cpc/bin/ts.tilemaps.bin" ; 384 byte
-		#endif		
+		; defs 384		
+		defs 384
 
 	._behs
 		; Space to describe up to 48 metatiles (48 bytes).
 		; defs 48
 		; In this game, there is only one level.
 		#ifdef SPECCY
-			BINARY "../ports/zx/bin/behs.bin"
+			defs 48
 		#endif
 		#ifdef CPC
-			BINARY "../ports/cpc/bin/behs.bin"
+			defs 48
 		#endif
 
 	;; Sprite cells
@@ -100,20 +106,13 @@ extern const unsigned char ending_rle [0];
 	._ss_main
 		; First, space for / include the main characters
 		#ifdef SPECCY		
-			; 21 cells, 192 bytes each
+			; 9 cells, 192 bytes each
 			BINARY "../ports/zx/bin/ssch.bin"
 		#endif		
 		#ifdef CPC
-			; 13 cells, 96 bytes each
+			; 12 cells, 96 bytes each
 			BINARY "../ports/cpc/bin/ssch.bin"
 		#endif	
-
-		// Custon for this game:
-	#ifdef CPC
-		._ss_characters
-			; 6 cells, 96 bytes each
-			BINARY "../ports/cpc/bin/ssge.bin"
-	#endif
 
 	#ifdef CPC
 		._ss_empty
@@ -125,26 +124,38 @@ extern const unsigned char ending_rle [0];
 		; Second, space for the enemies / etc.
 		; SPRITES_EXTRA_CELLS masked cells (144 * EXTRA_SPRITES)
 		#ifdef SPECCY		
-			; defs SPRITES_EXTRA_CELLS * 144
-			; 8 cells, 144 bytes each
+			; defs SPRITES_EXTRA_CELLS * 192
+			; 6 cells, 192 bytes each
 			BINARY "../ports/zx/bin/ssen.bin"
 		#endif
 		#ifdef CPC
 			; defs SPRITES_EXTRA_CELLS * 64
-			; 8 cells, 64 bytes each
+			; 6 cells, 96 bytes each
 			BINARY "../ports/cpc/bin/ssen.bin"
 		#endif		
 
 	._ss_extra
 		; Third, assorted extra stuff
-		; Not used in this game
 		#ifdef SPECCY		
-			; BINARY "../ports/zx/bin/ssextra.bin"
+			; 2 cells, 144 bytes
+			BINARY "../ports/zx/bin/ssextra.bin"
 		#endif	
 		#ifdef CPC
-			; BINARY "../ports/cpc/bin/ssextra.bin"
+			; 2 cells, 96 bytes
+			BINARY "../ports/cpc/bin/ssextra.bin"
 		#endif		
 
+	// CUSTOM {
+	._ss_pumpkin
+		#ifdef SPECCY
+			BINARY "../ports/zx/bin/sspumpkin.bin"
+		#endif
+		#ifdef CPC
+			BINARY "../ports/cpc/bin/sspumpkin.bin"
+		#endif
+	// } END_OF_CUSTOM
+
+	#ifdef NEED_SMALL_SPRITES
 	._ss_small
 		; Small sprites
 		#ifdef SPECCY
@@ -157,6 +168,7 @@ extern const unsigned char ending_rle [0];
 			; 1 cell, 16 bytes
 			BINARY "../ports/cpc/bin/sssmall.bin"
 		#endif	
+	#endif
 
 	;; Map data + index
 	._map
@@ -171,6 +183,7 @@ extern const unsigned char ending_rle [0];
 				defs MAX_PANTS*150
 		#endif
 		*/
+		/*
 		; there is only one non-destructible level in this game
 		#ifdef SPECCY
 			BINARY "../ports/zx/bin/map.bin"
@@ -178,6 +191,8 @@ extern const unsigned char ending_rle [0];
 		#ifdef CPC
 			BINARY "../ports/cpc/bin/map.bin"
 		#endif
+		*/		
+		defs 1900	; should be enough!
 
 	#ifdef ENABLE_DECOS		
 		._decos
@@ -191,6 +206,7 @@ extern const unsigned char ending_rle [0];
 			; You can adjust the amount of reserved bytes to the size of your
 			; biggest set of locks.
 			; defs MAX_LOCKS_SIZE
+			/*
 			; In this game, there is just one set of locks.			
 			#ifdef SPECCY		
 				BINARY "../ports/zx/bin/locks.bin"
@@ -198,6 +214,9 @@ extern const unsigned char ending_rle [0];
 			#ifdef CPC
 				BINARY "../ports/cpc/bin/locks.bin"
 			#endif
+			*/
+
+			defs 12	; make room for 6 locks
 	#endif
 
 	;; Enems data + index
@@ -205,6 +224,7 @@ extern const unsigned char ending_rle [0];
 		; You can adjust the amount of reserved bytes to the size of you.
 		; biggest set of enemies.
 		; defs MAX_ENEMS_SIZE
+		/*
 		; there is only one level in this game
 		#ifdef SPECCY
 			BINARY "../ports/zx/bin/enems.bin"
@@ -212,12 +232,15 @@ extern const unsigned char ending_rle [0];
 		#ifdef CPC
 			BINARY "../ports/cpc/bin/enems.bin"
 		#endif		
+		*/
+		defs MAX_PANTS*12	; MAX_PANTS rooms, 3 enems per room, 4 bytes each
 
 	;; Hotspots
 
 	._hotspots
 		; reserve two bytes per screen
 		;defs 2*MAX_PANTS
+		/*
 		; there is only one level in this game
 		#ifdef SPECCY
 			BINARY "../ports/zx/bin/hotspots.bin"
@@ -225,6 +248,8 @@ extern const unsigned char ending_rle [0];
 		#ifdef CPC
 			BINARY "../ports/cpc/bin/hotspots.bin"
 		#endif	
+		*/
+		defs MAX_PANTS*2	; MAX_PANTS rooms, 2 bytes per room
 
 	;; Fixed screens
 
@@ -234,6 +259,14 @@ extern const unsigned char ending_rle [0];
 		#endif
 		#ifdef CPC
 			BINARY "../ports/cpc/bin/title.rle.bin"
+		#endif
+
+	._hud_rle
+		#ifdef SPECCY
+			BINARY "../ports/zx/bin/hud.rle.bin"
+		#endif
+		#ifdef CPC
+			BINARY "../ports/cpc/bin/hud.rle.bin"
 		#endif
 
 	._ending_rle

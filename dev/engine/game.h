@@ -1,5 +1,5 @@
-// MT MK3 OM v0.4 [Cheril in Otro Bosque]
-// Copyleft 2017, 2018 by The Mojon Twins
+// MT MK3 OM v0.6 [Cheman]
+// Copyleft 2017, 2019 by The Mojon Twins
 
 // Game functions
 
@@ -15,7 +15,6 @@ void game_shutdown_sprites (void) {
 }
 
 void game_init (void) {
-
 	#if defined(ENEMIES_CAN_DIE) && defined(PERSISTENT_DEATHS)
 		enems_persistent_deaths_init ();
 	#endif	
@@ -33,11 +32,15 @@ void game_init (void) {
 	#endif	
 
 		n_pant = c_level [PLAYER_SCR_INI]; // n_pant=4;prx = 224; px=prx<<4;
-
 		player_init ();
 
-		pkeys = pobjs = 0;
-		on_pant = oplife = opobjs = opkeys = 0xff;
+		pkeys = pobjs = pbodycount = 0;
+
+	#ifdef ONLY_ONE_OBJECT_FLAG
+		flags [ONLY_ONE_OBJECT_FLAG] = 0;
+	#endif
+		
+		on_pant = oplife = opobjs = opkeys = opbodycount = 0xff;
 
 	#ifdef HOTSPOT_TYPE_STAR
 		opstars = 0xff;
@@ -51,14 +54,28 @@ void game_init (void) {
 		first_time = 1;
 
 		// DRAW GAME FRAME
-		CLEAR_RECT (RECT_FULL_SCREEN);
-		rdc = 71;
-		_y  = 0; _x  = 1;    p_s ("LIFE:");
-		         _x  = 0xb;  p_s ("KEYS:");
-		         _x  = 0x15; p_s ("OBJECTS:");
+		gp_aux = hud_rle; unrle ();
 
-		// Custom characters
-		ob_init ();
+	#ifdef ENABLE_SPRINGS
+		springs_on = 1;
+	#endif
+
+	#ifdef PERSISTENT_TILE_GET
+		//gpit = MAX_PANTS*12; while (gpit) { -- gpit; tile_got [gpit] = 0; }
+		#asm
+			ld  hl, _tile_got
+			ld  de, _tile_got + 1
+			xor a
+			ld  (hl), a
+			ld  bc, MAX_PANTS*12-1
+			ldir
+		#endasm
+	#endif
+
+	// Custom inits:
+	#include "my/game_init_custom.h"
+	
+	olevel = level;
 }
 
 void game_prepare_screen (void) {
@@ -84,6 +101,10 @@ void game_prepare_screen (void) {
 
 	#ifdef FLOATY_PUSH_BOXES
 		fpb_init ();
+	#endif
+
+	#ifdef PLAYER_CAN_FIRE	
+		bullets_ini ();
 	#endif
 
 		enems_load ();
@@ -135,6 +156,10 @@ void game_loop (void) {
 		run_script (2 * MAX_PANTS);
 	#endif
 
+	#ifdef ONLY_ONE_OBJECT_FLAG
+		flags [ONLY_ONE_OBJECT_FLAG] = 0;
+	#endif
+
 	do_game = 1; pkilled = 0;
 	MUSIC_PLAY (M0_C);
 
@@ -143,19 +168,30 @@ void game_loop (void) {
 	#endif
 
 	while (do_game) {
-		#include "engine/mainloop/flick_screen.h"
+		#include "engine/mainloop/flick_screen_assembly.h"
 
-		half_life = 1 - half_life;
-		hl_proc = half_life;
-		frame_counter ++;
-		ticker ++; if (ticker >= 
+		#asm
+			ld  a, (_half_life)
+			ld  c, a
+			ld  a, 1
+			sub c
+			ld  (_half_life), a
+			ld  (_hl_proc), a
+			ld  hl, _frame_counter
+			inc (hl)
+			ld  a, (_ticker)
+			inc a
 		#ifdef SPECCY
-			25
+			cp  25
 		#endif
 		#ifdef CPC
-			16
+			cp  16
 		#endif
-		) ticker = 0;
+			jr  nz, _mltrs
+			xor a
+		._mltrs
+			ld  (_ticker), a
+		#endasm
 
 		#ifdef SPECCY
 			pad0 = CONTROLLER_READ;
@@ -163,12 +199,17 @@ void game_loop (void) {
 
 		pgotten = pgtmx = pgtmy = 0;
 		enems_do ();
+
 		player_move ();
 
 		#ifdef ENABLE_COCOS
 			simplecoco_do ();
 		#endif		
 		
+		#ifdef PLAYER_CAN_FIRE
+			bullets_do ();
+		#endif
+
 		#ifndef DISABLE_HOTSPOTS	
 			hotspots_do ();
 		#endif
@@ -191,46 +232,53 @@ void game_loop (void) {
 			timed_message_do ();
 		#endif		
 
-		// CUSTOM { 
-			#include "engine/mainloop/ob.h"
-		// } END_OF_CUSTOM
-
 		// Update screen
-		#ifdef SPECCY		
+		#ifdef SPECCY	
+			/*	
 			if (isrc < 2) {
 				#asm
 					halt
 				#endasm
 			}
 			isrc = 0;
+			*/
+			#asm
+				.main_loop_isrc_wait
+					ld  a, (_isrc)
+					cp  2
+					jr  c, main_loop_isrc_wait
+					xor a
+					ld  (_isrc), a
+			#endasm
 		#endif		
 		
 		#ifdef CPC		
-			while (isrc [0] < 18) {
-				#asm 
-					halt
-				#endasm
-			}
-			isrc [0] = 0;
+			#asm
+					ld  a, (_isrc_max)
+					ld  c, a
+					ld  a, (_isrc)
+					cp  c
+					jr  c, _mlmaxisrcsk
+					ld  (_isrc_max), a
+				._mlmaxisrcsk
+
+				.main_loop_isrc_wait
+					ld  a, (_isrc)
+					cp  18
+					jr  nc, main_loop_isrc_continue
+					jr main_loop_isrc_wait
+				.main_loop_isrc_continue
+					xor a 
+					ld  (_isrc), a
+			#endasm
+			
 		#endif
+
+		#include "my/main_loop_custom.h"
 		
-		// Update sprites
-		#if defined (TALL_PLAYER)
-			gpit = SW_SPRITES_ALL; while (gpit --) if (spr_on [gpit]) {
-				rdx = spr_x [gpit]; rdsint = spr_y [gpit] - 16;
-				if (gpit < SW_SPRITES_16x24) rdsint -= 8;
-				SPRITE_UPDATE_ABS (gpit, rdx, rdsint);
-				SPRITE_CELL_PTR_UPDATE (gpit);
-			} else SPRITE_OUT (gpit);
-		#else		
-			gpit = SW_SPRITES_ALL; while (gpit --) if (spr_on [gpit]) {
-				rdx = spr_x [gpit]; rdsint = spr_y [gpit] - 16;
-				SPRITE_UPDATE_ABS (gpit, rdx, rdsint);
-				SPRITE_CELL_PTR_UPDATE (gpit);
-			} else SPRITE_OUT (gpit);
-		#endif
-		
-		SCREEN_UPDATE;
+		if (do_game == 0 && n_pant != on_pant) continue;
+
+		#include "engine/mainloop/screen_update.h"
 
 		#ifdef SE_BEEPER
 			if (queued_sound != 0xff) {
@@ -250,24 +298,12 @@ void game_loop (void) {
 		// Moar
 		if (pwashit) player_hit ();
 
-		// Customize the ending condition
-		/*
-		if (pkilled 
-			|| pobjs == c_level [MAX_HOTSPOTS_TYPE_1]
-			#ifdef SCRIPTING_ON			
-				|| (script_result)
-			#endif			
-			#ifdef CHEAT_ON
-				|| (CONTROLLER_LEFT(pad) && CONTROLLER_RIGHT(pad))
-			#endif			
-		) do_game = 0;
-		*/
-		if (pkilled
-			|| (pobjs == MAX_HOTSPOTS_0_TYPE_1 && character_order_idx == 5)
-		) do_game = 0;
-
+		// Customize the ending condition		
+		#include "my/game_ending_condition.h"
 	}
-	all_sprites_out ();
+	#ifdef SPECCY
+		all_sprites_out ();
+	#endif
 	MUSIC_STOP;
 }
 
@@ -277,12 +313,13 @@ void game_title (void) {
 		gp_aux = title_rle; unrle (); 
 
 		rdc = 71;
-		_x = 15; _y = 9; p_s ("OF THE BOSQUE/EN OTRO BOSQUE");
-		_x = 5; _y = 19; p_s ("@ 2018 THE MOJON TWINS");
-
-		_x = 10; _y = 13; p_s ("1.KEYS WASDM/2.KEYS OPQAS/3.KEYS QAOPS/4.KEMPSTON/5.SINCLAIR");
+		_x = 10; _y = 13; p_s ("1.KEYS WASDM/2.KEYS OPQA\x5c/3.KEYS QAOP\x5c/4.KEMPSTON/5.SINCLAIR");
 
 		sp_UpdateNow (); 
+
+		#asm
+			call play_music
+		#endasm
 
 		while (1) {
 			gpit = KEY_ASCII - '0';
@@ -294,11 +331,10 @@ void game_title (void) {
 	#endif	
 
 	#ifdef CPC
+		MUSIC_STOP;
 		gp_aux = title_rle; unrle (); 
 
-		_x = 15; _y = 9; p_s ("OF THE BOSQUE/EN OTRO BOSQUE");
-		_x = 5; _y = 19; p_s ("@ 2018 THE MOJON TWINS");
-
+	game_title_forlorn:
 		_x = 6; _y = 15; p_s ("PRESS ESC TO REDEFINE/PRESS ENTER TO START ");
 
 		cpc_ShowTileMap (0);
@@ -306,10 +342,10 @@ void game_title (void) {
 		while (cpc_AnyKeyPressed());
 		while (1) {
 			if (cpc_TestKey (KEY_ESC)) {
-				controls_setup (); break;
+				controls_setup (); goto game_title_forlorn;
 			} 
 			if (cpc_TestKey (KEY_ENTER)) {
-				rdf = 0; break;
+				break;
 			}
 		}
 
@@ -328,13 +364,29 @@ void game_over (void) {
 	MUSIC_STOP;
 }
 
+void game_level (void) {
+	CLEAR_RECT (RECT_FULL_SCREEN);
+	#ifdef SPECCY
+		rdc = 71; _x = 12; _y = 12; p_s ("LEVEL:");
+		DRAW_PATTERN_UPD (19, 12, 71, 17+level);
+	#endif
+	#ifdef CPC
+		rdc = 71; _x = 12; _y = 12; p_s ("LEVEL");
+		_x = 18; _y = 12; _n = level+1; p_t2 ();
+	#endif
+	SCREEN_UPDATE_NO_SPRITES;
+	//MUSIC_PLAY (M2_C);
+	#ifdef SPECCY
+		SFX_PLAY_DIRECT (SFX_ITEM);
+	#endif
+	wait_button ();
+	MUSIC_STOP;
+}
+
 void game_ending (void) {
 	MUSIC_PLAY (M0_C);
 	#ifdef SPECCY
 		gp_aux = ending_rle; unrle ();
-
-		_x = 4; _y = 14; rdc = 71;
-		p_s (" AND THIS IS HOW CHERIL// GOT OUT OF THE BOSQUE.//NOW HER ADVENTURE BEGINS//SEE YOU SOON, CATUNAMBU!");
 
 		sp_UpdateNow ();
 		SFX_PLAY_DIRECT (SFX_ITEM);
@@ -346,10 +398,13 @@ void game_ending (void) {
 	#ifdef CPC
 		gp_aux = ending_rle; unrle ();
 
-		_x = 4; _y = 14;
-		p_s (" AND THIS IS HOW CHERIL// GOT OUT OF THE BOSQUE.//NOW HER ADVENTURE BEGINS//SEE YOU SOON, CATUNAMBU!");
+		_x =3; _y = 14; p_s ("BLOODY BATUCADAS, THEY");
+		_x =3; _y = 16; p_s ("ALMOST MADE ME LATE FOR");
+		_x =3; _y = 18; p_s ("THE GREATEST BAND ON EARTH");
+		_x =3; _y = 20; p_s ("I HOPE THEY ROCK DA PLACE!");
 
 		cpc_ShowTileMap (0);
+
 		SFX_PLAY_DIRECT (SFX_ITEM);
 
 		wait_button ();

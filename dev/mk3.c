@@ -1,29 +1,34 @@
-// MT MK3 OM v0.4 [Cheril in Otro Bosque]
-// Copyleft 2017, 2018 by The Mojon Twins
+// MT MK3 OM v0.6 [Cheman]
+// Copyleft 2017, 2019 by The Mojon Twins
 
 //#define DEBUG
 //#define CHEAT_ON
 
 // Main memory allocation & setup
 #ifdef SPECCY
-#ifdef MODE_128K
-	#pragma output STACKPTR=23999
-	#define FREEPOOL 		61697
-	#define BASE_EP 		61857	// (FREEPOOL+160);
-#else
-	//#pragma output STACKPTR=61952
-	#pragma output STACKPTR=61936
-	#define RAMTOP 			61440
+	// splib2 memory map:
+	// 61440 - 61696  IM 2 Interrupt Vector Table (optional) 
+	// 61697 - 61936  Free (240 bytes) 
+	// 61937 - 61948  Generic Interrupt Service Routine @ 0xf1f1 (optional) 
+	// 61949 - 61951  Free (3 bytes) 
+	// 61952 - 65535  Horizontal Rotation Tables (optional)
 
-	#define TEXTBUFF		23296
-	#define BASE_EP 		23296 + 116
-	#define FREEPOOL 		23296 + 116 + 252
+	#ifdef MODE_128K
+		#pragma output STACKPTR=24049
+		#define FREEPOOL 		61697
+		#define BASE_EP 		61857	// (FREEPOOL+160);
+	#else
+		//#pragma output STACKPTR=61952
+		#pragma output STACKPTR=61936
+		#define RAMTOP 			61440
 
-	// Beware! If you use breakables, and 16x12, 
-	// Change 320 for 384 and move the binary to 24050!
-	#define BASE_BREAKABLE	23296 + 116 + 252 + 320
+		#define TEXTBUFF		23296
+		#define BASE_EP 		23296 + 116
+		#define FREEPOOL 		23296 + 116 + 252
 
-#endif
+		#define BASE_BREAKABLE	23296 + 116 + 252 + 384
+
+	#endif
 #endif
 
 #ifdef CPC
@@ -39,6 +44,7 @@
 	#define BASE_SPRITES 	0xE000 + 0x600
 	#define BASE_SFX		0xE800 + 0x600	
 	#define BASE_EP 		0xF000 + 0x600
+	#define BASE_LUT		0xF800 + 0x600
 
 	#define BASE_ARKOS		34868 	// 0x8834
 	#define BASE_MUSIC		32250	// 0x7DFA
@@ -69,6 +75,9 @@
 
 #ifdef CPC
 	#include "assets/pal.h"
+	// CUSTOM {
+	#include "assets/pal2.h"
+	// } END_OF_CUSTOM
 #endif
 
 #include "_somedefs.h"
@@ -92,25 +101,23 @@
 #include "assets/levelset.h"
 #include "assets/spriteset.h"
 #include "assets/precalcs.h"
-
-// Custom assets
-#include "assets/ob_data.h"
-#include "assets/ob_texts.h"
+#include "assets/dynamic_sprite_sizes.h"
 
 // Utils
 #include "util/aplib.h"
+#include "util/random.h"
+//#include "util/passwd_ninjajar_M.h"
+
+#include "util/general.h"
+#include "util/librarian.h"
+
 #ifdef SPECCY
 	#include "util/system_speccy.h"
 #endif
 #ifdef CPC
 	#include "util/system_cpc.h"
 #endif
-
-#include "util/random.h"
-//#include "util/passwd_ninjajar_M.h"
-
-#include "util/general.h"
-#include "util/librarian.h"
+	
 #include "util/collisions.h"
 #include "util/controls.h"
 
@@ -145,6 +152,9 @@
 #ifdef ENABLE_HITTER
 	#include "engine/hitter.h"
 #endif
+#ifdef PLAYER_CAN_FIRE
+	#include "engine/bullets.h"
+#endif
 #include "engine/enems.h"
 #include "engine/player.h"
 #include "engine/hud.h"
@@ -156,16 +166,14 @@
 #endif
 #include "engine/level_setup.h"
 
-// Custom
-#include "engine/ob.h"
-
 #include "engine/game.h"
+
 
 #include "main.h"				// Main loop
 
 // Sound
 #ifdef SE_BEEPER
-	//#include "sound/beeper_music.h"
+	#include "sound/beeper_music.h"
 	#include "sound/beeper_sfx.h"
 #endif
 

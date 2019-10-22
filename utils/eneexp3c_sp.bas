@@ -9,7 +9,7 @@ Dim Shared As Integer mainIndex
 Sub usage
 	Print "usage:"
 	Print ""
-	print "$ eneexp3c_sp.exe in=enems.ene out=out.bin [yadjust=t] [nohotspots]"
+	print "$ eneexp3c_sp.exe in=enems.ene out=out.bin prefix=prefix [yadjust=t] [nohotspots]"
 End Sub
 
 Sub mbWrite (v As uByte)
@@ -48,6 +48,7 @@ Dim As uByte miniBin (255)
 Dim As Integer miniBinIdx
 Dim As Integer screenOn (255)
 Dim As Integer totalBytes
+Dim As Integer genallcounters
 
 Print "eneexp3c_sp v0.1.20170630 ";
 
@@ -59,6 +60,8 @@ If Not sclpCheck (mandatory ()) Then usage: End
 yadjust = Val (sclpGetValue ("yadjust"))
 noHotspots = Val (SclpGetValue ("nohotspots"))
 fileName = formatFileName (sclpGetValue ("out"))
+prefix = sclpGetValue ("prefix")
+genallcounters = (sclpGetValue ("genallcounters")<>"")
 
 ' Outputs 4 bytes per entry
 ' T for type
@@ -108,7 +111,13 @@ For i = 1 To mapPants
 
 		' t == 0 means no enemy defined
 		If t Then
-			enTypeCounters (t And &HF0) = enTypeCounters (t And &HF0) + 1
+		
+			If genallcounters Then
+				enTypeCounters (t) = enTypeCounters (t) + 1
+			Else
+				enTypeCounters (t And &HF0) = enTypeCounters (t And &HF0) + 1
+			End If
+		
 			miniBin (miniBinIdx) = t: miniBinIdx = miniBinIdx + 1
 			miniBin (miniBinIdx) = xy1: miniBinIdx = miniBinIdx + 1
 			miniBin (miniBinIdx) = xy2: miniBinIdx = miniBinIdx + 1
@@ -185,4 +194,4 @@ End If
 
 Close #fIn
 
-Print "DONE! E=" & mainIndex
+Print "DONE! E=" & mainIndex & " / " & (mapPants * 12)

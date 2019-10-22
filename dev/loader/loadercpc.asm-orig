@@ -1,4 +1,7 @@
-org $A300
+;; BEWARE! THIS GAME HAS TWO LOADING SCREENS!
+;; REMOVE ONE FOR NORMAL GAMES!! CUSTOM {}
+
+org %%%loader_org%%%
 
 ; Ints off
 
@@ -19,7 +22,7 @@ org $A300
 	ld     ix, $6400
 	ld     de, %%%scrc_size%%%
 	ld     a, $ff
-	call   topoload
+	call   topoload	
 
 ; Decompress
 
@@ -27,46 +30,45 @@ org $A300
 	ld     de, $c000
 	call   depack
 
-; Set palette adapted from cpctelera
+; Set palette
 
-	ld     de, 15	
-	ld     hl, palette
-	add    hl, de
-	ld     b, $7f
+	call   setPal
 
-loopPal:
-
-	out    (c), e    ; Select index
-	ld     a, (hl)
-	or     $40
-	out    (c), a    ; Set colour
-	dec    hl
-	dec    e
-	jp     p, loopPal
+;; THIS BLOCK IS NEW AND CUSTOM
+	ld     ix, $6400
+	ld     de, %%%scrc1_size%%%
+	ld     a, $ff
+	call   topoload
+	call   blackenpal
+	ld     hl, $6400
+	ld     de, $c000
+	call   depack
+	call   setPal
+;; END OF CUSTOM
 
 ; Load main block gamec.bin
 
-	ld     ix, $6400
+	ld     ix, %%%mainbin_addr%%%
 	ld     de, %%%mainbin_size%%%
 	ld     a, $ff
 	call   topoload
 
 ; Decompress
 
-	ld     hl, $6400
+	ld     hl, %%%mainbin_addr%%%
 	ld     de, $400
 	call   depack
 
 ; Load arkos + sfx arkos_sfx.c.bin
 
 	ld     ix, 32250
-	ld     de, %%%arkos_c_size%%%
+	ld     de, %%%arkos_sfx_c_size%%%
 	ld     a, $FF
 	call   topoload
 
 ; Decompress sfx
 
-	ld     hl, 32250 + 1149
+	ld     hl, 32250 + %%%arkos_c_size%%%
 	ld     de, $EE00
 	call   depack
 
@@ -98,8 +100,29 @@ loopBlackPal:
 
 	ret
 
+setPal:
+
+; Set palette adapted from cpctelera
+
+	ld     de, 15	
+	ld     hl, palette
+	add    hl, de
+	ld     b, $7f
+
+loopPal:
+
+	out    (c), e    ; Select index
+	ld     a, (hl)
+	or     $40
+	out    (c), a    ; Set colour
+	dec    hl
+	dec    e
+	jp     p, loopPal
+
+	ret
+
 palette:
-	defb 20, 0, 11, 7, 28, 12, 3, 30, 10, 25, 22, 18, 6, 31, 4, 24
+	defb 20, 11, 5, 24, 15, 4, 23, 27, 30, 3, 14, 12, 28, 7, 0, 20
 
 ;; Modified Topo soft loader
 ;;

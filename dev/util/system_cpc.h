@@ -1,5 +1,5 @@
-// MT MK3 OM v0.4 [Cheril in Otro Bosque]
-// Copyleft 2017, 2018 by The Mojon Twins
+// MT MK3 OM v0.6 [Cheman]
+// Copyleft 2017, 2019 by The Mojon Twins
 
 // System Initializacion file
 
@@ -17,15 +17,6 @@ void system_init (void) {
 	#asm
 		di
 	#endasm
-
-	#ifndef TAPE
-		// Decompress ARKOS player and SFX
-		// The binary ARKOS+SFX is loaded @ BASE_MUSIC
-		// Which is the buffer where we descompress music later on
-
-		unpack ((unsigned char *) (BASE_MUSIC+SIZE_ARKOS_COMPRESSED), (unsigned char *) (BASE_SFX));
-		unpack ((unsigned char *) (BASE_MUSIC), (unsigned char *) (BASE_ARKOS));		
-	#endif
 
 	// Init arkos (turn it off, in fact!)
 
@@ -52,6 +43,35 @@ void system_init (void) {
 		defw 0
 	._interrupcion
 		push af
+		push bc
+		push hl
+		push de
+		push ix
+		push iy
+		exx
+		ex af, af
+		push af
+		push bc
+		push de
+		push hl
+		
+		ld a, (_isrc)
+		inc a
+		ld (_isrc), a
+
+	.___reduce
+		cp  6
+		jr  c, ___noreduce
+		sub 6
+		jr  ___reduce
+	.___noreduce		
+
+		;and 0x1f
+		;or  0x40
+		;ld  bc, 0x7F10
+		;out (c), c
+		;out (c), a
+
 
 		ld a, (_arkc)
 		inc a
@@ -59,39 +79,26 @@ void system_init (void) {
 		cp 6
 		jp nz, _noplayer
 
-		push bc
-		push hl
-		push de
-		exx
-		push bc
-		push hl
-		push de
-		push af
-		push ix
-		push iy
-
 		call PLY_PLAY
-
-		pop iy
-		pop ix
-		pop af 
-		pop de 
-		pop hl 
-		pop bc
-		exx
-		pop de 
-		pop hl 
-		pop bc 
 
 		xor a
 	._noplayer
 		ld (_arkc), a
 
-		ld a, (_isrc)
-		inc a
-		ld (_isrc), a
+		pop hl 
+		pop de 
+		pop bc
+		pop af 
+		ex af, af
+		exx
+		pop iy
+		pop ix
+		pop de 
+		pop hl 
+		pop bc 
 		pop af
 		ei
+
 		ret
 	.term
 	#endasm
@@ -105,23 +112,24 @@ void system_init (void) {
 		out (c), c
 		out (c), a
 	#endasm
-		
-	// Default keys
 
-	cpc_AssignKey (KEY_LEFT, 		0x4820);      // A
-	cpc_AssignKey (KEY_RIGHT, 		0x4720);      // D
-	cpc_AssignKey (KEY_DOWN, 		0x4710); 	  // S
-	cpc_AssignKey (KEY_UP, 			0x4708);      // W
+	#ifndef TAPE
+		// Decompress ARKOS player and SFX
+		// The binary ARKOS+SFX is loaded @ BASE_MUSIC
+		// Which is the buffer where we descompress music later on
 
-	cpc_AssignKey (KEY_BUTTON_A,	0x4440);      // M
-	cpc_AssignKey (KEY_BUTTON_B, 	0x4540);      // N
+		unpack ((unsigned char *) (BASE_MUSIC+SIZE_ARKOS_COMPRESSED), (unsigned char *) (BASE_SFX));
+		unpack ((unsigned char *) (BASE_MUSIC), (unsigned char *) (BASE_ARKOS));		
+	#endif
 	
-	cpc_AssignKey (KEY_ESC, 0x4804);		// ESC
-	cpc_AssignKey (KEY_ENTER, 0x4204);		// ENTER
+	// Get the LUT in place
+	librarian_get_resource (TRPIXLUTC, (unsigned char *) (BASE_LUT));
+		
+	// Default keys are punched directly in CPCRSLIB: ADSWMN ENTER ESC
 
 	// Set palette
 
-	gpit = 16; while (gpit --) cpc_SetColour (gpit, my_inks [gpit]);
+	_pal_set (my_inks);
 	//halt_me ();
 
 	// Set mode
@@ -160,11 +168,28 @@ void system_init (void) {
 	// Sprite allocation
 
 	gpit = SW_SPRITES_ALL; while (gpit --) {		
-		sp_sw [gpit].sp0 = (int) (ss_main);
-		sp_sw [gpit].sp1 = (int) (ss_main);
-		sp_sw [gpit].move = 0;
 		sp_sw [gpit].cx = sp_sw [gpit].ox = 0;
 		sp_sw [gpit].cy = sp_sw [gpit].oy = 0;
+		spr_order [gpit] = gpit;
+
+		// This game: sprites 0 - 3 are 8x24 - albeit they can change dinamicly.
+		// Sprite 4 is 8x16
+	
+		if (gpit < 4) {
+			sp_sw [gpit].sp0 = (int) (ss_main);
+			sp_sw [gpit].sp1 = (int) (ss_main);			
+			sp_sw [gpit].invfunc = cpc_PutSpTileMap8x24;
+			sp_sw [gpit].updfunc = cpc_PutTrSp8x24TileMap2b;
+			sp_sw [gpit].cox = 0;
+			sp_sw [gpit].coy = -8;
+		} else {
+			sp_sw [gpit].sp0 = (int) (ss_pumpkin);
+			sp_sw [gpit].sp1 = (int) (ss_pumpkin);
+			sp_sw [gpit].invfunc = cpc_PutSpTileMap8x16;
+			sp_sw [gpit].updfunc = cpc_PutTrSp8x16TileMap2b;
+			sp_sw [gpit].cox = 0;
+			sp_sw [gpit].coy = 0;
+		}
 	}
 
 	//halt_me ();

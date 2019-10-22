@@ -1,5 +1,5 @@
-// MT MK3 OM v0.4 [Cheril in Otro Bosque]
-// Copyleft 2017, 2018 by The Mojon Twins
+// MT MK3 OM v0.6 [Cheman]
+// Copyleft 2017, 2019 by The Mojon Twins
 
 // Misc stuff
 
@@ -15,23 +15,30 @@ void pad_read (void) {
 
 unsigned char *map_base_address (void) {
 #ifdef MAP_FORMAT_NOINDEX
-#ifdef MAP_FORMAT_PACKED
-	#ifdef MAP_HEIGHT_12
+	#ifdef MAP_FORMAT_PACKED
 		return (unsigned char *) (map + n_pant * 96);
 	#else
-		return (unsigned char *) (map + n_pant * 75);
-	#endif
-#else
-	#ifdef MAP_HEIGHT_12
 		return (unsigned char *) (map + n_pant * 192);
-	#else
-		return (unsigned char *) (map + n_pant * 150);
 	#endif
-#endif
 #else
+	/*
 	rdc = n_pant << 1;
 	rda = *(map + rdc); rdb = *(map + rdc + 1);
 	return (unsigned char *) (map + ((rdb << 8) | rda));
+	*/
+	#asm
+		ld  a, (_n_pant)
+		sla a
+		ld  d, 0
+		ld  e, a
+		ld  hl, _map
+		add hl, de 		; HL = map + (n_pant << 1)
+		ld  e, (hl)
+		inc hl
+		ld  d, (hl) 	; DE = index
+		ld  hl, _map
+		add hl, de      ; HL = map + index
+	#endasm
 #endif
 }
 
@@ -68,7 +75,7 @@ void button_pressed (void) {
 
 void wait_button (void) {
 	while (button_pressed ());
-	while (!button_pressed ());
+	while (0==button_pressed ());
 }
 
 void delay (unsigned char cycles) {
@@ -77,7 +84,7 @@ void delay (unsigned char cycles) {
 	while (isrc < cycles);
 #endif
 #ifdef CPC
-	isrc [0] = 0;
-	while (isrc < cycles) { gpit = 6; while (gpit --); }
+	isrc = 0;
+	while (isrc < cycles);
 #endif
 }
